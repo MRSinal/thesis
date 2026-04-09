@@ -24,18 +24,35 @@ class JEPA(nn.Module):
         self.projector = projector or nn.Identity()
         self.pred_proj = pred_proj or nn.Identity()
 
-    def encode(self, info):
-        """Encode observations and actions into embeddings.
-        info: dict with pixels and action keys
+    def encode(self, info, return_hidden_states=False):
+        """Encode observations into embeddings.
+        info: dict with "pixels" key. Pixels may be (B, T, C, H, W) or (B, C, H, W).
+        return_hidden_states: if True, store per-layer CLS token features
+            under info["hidden_states"] as a tensor of shape (B[*T], L, D),
+            where L = num_hidden_layers + 1 (embedding layer included).
         """
 
         pixels = info['pixels'].float()
-        b = pixels.size(0)
-        pixels = rearrange(pixels, "b t ... -> (b t) ...") # flatten for encoding
-        output = self.encoder(pixels, interpolate_pos_encoding=True)
+        is_seq = pixels.dim() == 5
+        if is_seq:
+            b = pixels.size(0)
+            pixels = rearrange(pixels, "b t ... -> (b t) ...")
+
+        output = self.encoder(
+            pixels,
+            interpolate_pos_encoding=True,
+            output_hidden_states=return_hidden_states,
+        )
         pixels_emb = output.last_hidden_state[:, 0]  # cls token
         emb = self.projector(pixels_emb)
-        info["emb"] = rearrange(emb, "(b t) d -> b t d", b=b)
+        info["emb"] = rearrange(emb, "(b t) d -> b t d", b=b) if is_seq else emb
+
+        if return_hidden_states:
+            # Stack tuple of (B*, num_tokens, D) into (B*, L, D) using only the CLS token
+            cls_per_layer = torch.stack(
+                [h[:, 0] for h in output.hidden_states], dim=1
+            )
+            info["hidden_states"] = cls_per_layer
 
         return info
 

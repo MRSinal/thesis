@@ -1,0 +1,35 @@
+defaults:
+  - _self_
+
+ckpt_path: ???  # path to pretrained JEPA *_object.ckpt
+
+dataset:
+  module: dataset_cholec80:Cholec80Dataset  # "module.path:ClassName"
+  kwargs: {}                                 # passed as **kwargs to the class
+  num_classes: 7
+
+img_size: 224
+seed: 3072
+device: cuda
+
+loader:
+  batch_size: 256
+  num_workers: 4
+  pin_memory: True
+
+probe:
+  epochs: 20
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  train_split: 0.8
+  inner_batch_size: 4096
+
+feature_cache: null  # e.g. ./cache/cholec80_features.pt
+results_path: probe_results_cholec80.json
+
+wandb:
+  enabled: True
+  config:
+    entity: jepa
+    project: jepa
+    name: probe_cholec80
