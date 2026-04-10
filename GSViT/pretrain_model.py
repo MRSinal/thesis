@@ -155,7 +155,7 @@ if __name__ == "__main__":
     if gpu_parallel and torch.cuda.device_count() > 1:
         print("Using", torch.cuda.device_count(), "GPU(s)")
         evitae = nn.DataParallel(evitae)
-    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     evitae.to(device)
 
 
@@ -163,6 +163,8 @@ if __name__ == "__main__":
     running_loss_lg = 0
     epoch_est_filter = 0
     optim = torch.optim.Adam(evitae.parameters(), lr=lr_start)
+    criterion = nn.L1Loss()
+
 
     run = wandb.init(
         entity="mrsinal-tilburg-university",
@@ -201,19 +203,23 @@ if __name__ == "__main__":
             idx = torch.randperm(minibatches.shape[0])
             minibatches = minibatches[idx].view(minibatches.size())
             minibatches = list(torch.split(minibatches, in_size))
+
             # iterate through minibatch indices
             for mb_ind in range(len(minibatches)):
                 data_processed += in_size
                 if custom_dataset:
                     images, targets = dataset.get(minibatches[mb_ind])
-                    if gpu_parallel:
-                        images = images.to(device)
-                        targets = targets.to(device)
+                    images = images.to(device)
+                    targets = targets.to(device)
                 else:
                     target = images
                 decoded = evitae(images)
-                _sub_rcloss = abs(decoded.flatten() - targets.detach().flatten()).mean()
-                reconstruct_loss += _sub_rcloss
+
+                batch_loss = criterion(decoded, targets)
+                
+                (batch_loss / len(minibatches)).backward()
+
+                reconstruct_loss += batch_loss.item()
 
             reconstruct_loss.backward()
             optim.step()
