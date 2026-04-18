@@ -5,11 +5,11 @@ defaults:
 output_model_name: lewm_surgical
 subdir: ${hydra:job.id}
 
-num_workers: 6
+num_workers: 12
 train_split: 0.9
 seed: 3072
 img_size: 224
-patch_size: 14
+patch_size: 16
 encoder_scale: tiny
 dump_object: True
 
@@ -17,20 +17,21 @@ trainer:
   max_epochs: 100
   devices: auto
   accelerator: gpu
-  precision: bf16
+  precision: bf16-mixed
   gradient_clip_val: 1.0
 
 loader:
-  batch_size: 128
+  batch_size: 512
   num_workers: ${num_workers}
   persistent_workers: True
-  prefetch_factor: 3
+  prefetch_factor: 4
   pin_memory: True
 
 optimizer:
   type: AdamW
-  lr: 5e-5
+  lr: 2e-4
   weight_decay: 1e-3
+  fused: True
 
 wandb:
   enabled: True
