@@ -88,7 +88,18 @@ def run(cfg):
         img_size=cfg.img_size,
     )
 
-    train = torch.utils.data.DataLoader(dataset, **cfg.loader, shuffle=True, drop_last=True, generator=rnd_gen)
+    rnd_gen = torch.Generator().manual_seed(cfg.seed)
+    train_set, val_set = spt.data.random_split(
+        dataset, lengths=[cfg.train_split, 1 - cfg.train_split], generator=rnd_gen
+    )
+
+    train = torch.utils.data.DataLoader(train_set, **cfg.loader,shuffle=True, drop_last=True, generator=rnd_gen)
+    val = torch.utils.data.DataLoader(val_set, **cfg.loader, shuffle=False, drop_last=False)
+    steps_per_epoch = len(train)
+    total_epochs = cfg.trainer.get("max_epochs", 1)
+    print(f"--- Training Info ---")
+    print(f"Steps per epoch: {steps_per_epoch}") 
+    print(f"Total training steps: {steps_per_epoch * total_epochs}")
 
     ##############################
     ##       model / optim      ##
@@ -146,7 +157,7 @@ def run(cfg):
 
     forward_fn = partial(lejepa_forward_no_action, cfg=cfg)
 
-    data_module = spt.data.DataModule(train=train)
+    data_module = spt.data.DataModule(train=train, val=val)
     world_model = spt.Module(
         model=world_model,
         sigreg=SIGReg(**cfg.loss.sigreg.kwargs),
@@ -188,7 +199,7 @@ def run(cfg):
         data=data_module,
         ckpt_path=run_dir / f"{cfg.output_model_name}_weights.ckpt",
     )
-
+	
     manager()
     return
 
