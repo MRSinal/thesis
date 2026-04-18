@@ -1,194 +1,175 @@
 import os
-import gzip
-import pickle
 import random
-import time
-import torch.nn.functional as F
+from concurrent.futures import ThreadPoolExecutor
 
+import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.utils.data as data
-from torch.multiprocessing import Process
-import torch.multiprocessing as mp #, Queue
+
+# Avoid thread oversubscription: the async pipeline already uses a thread pool.
+cv2.setNumThreads(0)
+
+FRAME_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
-from numpy import *
-import cv2
-from PIL import Image
-
-def read_video(n_frames=None, video_loc=None):
-    i = 0
-    all = []
-    cap = cv2.VideoCapture(video_loc) #"rec_q26b_10min.mp4")
-    if n_frames is None:
-        n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    while cap.isOpened() and i < n_frames:
-        ret, frame = cap.read()
-        arr = np.array(frame)
-        all.append(arr)
-        i += 1
-    return np.array(all)
-
-def load_surgical(root, frames=None):
-    videos = list()
-    for video in os.listdir(root):
-        videos.append(read_video(video_loc=root + "/" + video, n_frames=frames))
-    return videos
-
-
-def lazy_load_surgical(arr, root, gpu):
-    clips = list()
-    videos= os.listdir(root)
-    num_videos=100
-    clip_dur=2
-
-    sampled_videos = [random.choice(videos,) for _ in range(num_videos)]
-    for video in sampled_videos:
-        cap = cv2.VideoCapture(root + video)
-        n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        start_frame = random.randint(0, n_frames - 1 - clip_dur)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-        all_frames = []
-        for _ in range(clip_dur):  # Only read the required number of frames
-            ret, frame = cap.read()
-            if not ret: break
-            frame = cv2.resize(frame, (224, 224))
-            all_frames.append(np.array(frame))
-        cap.release()
-        clip = np.array(all_frames)
-        clip_tensor = torch.tensor(clip, device="cuda:3" if gpu else "cpu").unsqueeze(0)
-        # print(clip_tensor.size())
-        clips.append(clip_tensor)
-    
-
-    if arr is not None: 
-        arr[:] = torch.cat(clips, dim=0).squeeze()[:].clone()
-    else:
-        return clips
+def _load_clip(frame_paths, start, clip_dur, img_size):
+    """Load a consecutive clip of `clip_dur` frames starting at index `start`."""
+    clip = np.empty((clip_dur, img_size, img_size, 3), dtype=np.uint8)
+    for i in range(clip_dur):
+        img = cv2.imread(frame_paths[start + i], cv2.IMREAD_COLOR)
+        if img.shape[0] != img_size or img.shape[1] != img_size:
+            img = cv2.resize(img, (img_size, img_size))
+        clip[i] = img  # BGR (matches original behavior — downstream didn't convert)
+    return clip
 
 
 class SurgicalDataset(data.Dataset):
-    def __init__(self, 
-                 root, 
-                 is_train=True, 
-                 n_frames_input=1, 
-                 n_frames_output=1, 
+    """Samples (input, target) frame pairs from pre-extracted JPEG frames.
+
+    Expected root layout (produced by le-wm/extract_frames.py):
+        root/
+            video_a/frame_000001.jpg, frame_000002.jpg, ...
+            video_b/...
+
+    Preserves the async-pipeline API expected by pretrain_model.py:
+        parallel_generate(), generate_dataset(parallel_call=True),
+        get(idx), total_frames.
+    """
+
+    def __init__(self,
+                 root,
+                 is_train=True,
+                 n_frames_input=1,
+                 n_frames_output=1,
                  transform=None,
                  batch_size=128,
-                 predict_change=False, 
-                 gpu=True,
-                 finetune=False):
-        super(SurgicalDataset, self).__init__()
+                 predict_change=False,
+                 gpu=True,   
+                 finetune=False,
+                 img_size=224,
+                 loader_threads=16):
+        super().__init__()
 
         self.root = root
-        self.dataset = None
-        self.gpu = gpu
+        self.is_train = is_train
         self.finetune = finetune
         self.batch_size = batch_size
         self.predict_change = predict_change
-        self.videos = os.listdir(root)
-        self.num_video = len(self.videos)
+        self.transform = transform
+        self.img_size = img_size
 
-        total_frames = 0
-        video_probs = list()
-        for video in self.videos:
-            cap = cv2.VideoCapture(root + video)
-            print(root + video)
-            frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            total_frames += frames
-            video_probs.append(frames)
-        for _ in range(len(video_probs)):
-            video_probs[_] /= total_frames
-        self.video_probs = video_probs
-        self.total_frames = total_frames
-
-        self.is_train = is_train
         self.n_frames_input = n_frames_input
         self.n_frames_output = n_frames_output
-        self.n_frames_total = self.n_frames_input + self.n_frames_output
-        self.transform = transform
+        self.n_frames_total = n_frames_input + n_frames_output
+        self.clip_dur = self.n_frames_total
 
-        # data format:
-        # (time in + time out) X batch X image_x X image_y x 1
-        self.clips = list()
-        self.generate_dataset()
+        self.videos = [] 
+        total = 0
+        for name in sorted(os.listdir(root)):
+            vdir = os.path.join(root, name)
+            if not os.path.isdir(vdir):
+                continue
+            frames = sorted(
+                os.path.join(vdir, f) for f in os.listdir(vdir)
+                if os.path.splitext(f)[1].lower() in FRAME_EXTS
+            )
+            if len(frames) >= self.clip_dur:
+                self.videos.append((name, frames))
+                total += len(frames)
+
+        assert self.videos, f"No frame folders with >= {self.clip_dur} frames under {root}"
+        self.total_frames = total
+
+        counts = np.array([len(f) for _, f in self.videos], dtype=np.float64)
+        self.video_probs = counts / counts.sum()
+
+        # Two thread pools: one for individual clip loads, one that owns the async fill.
+        self._inner = ThreadPoolExecutor(max_workers=loader_threads)
+        self._outer = ThreadPoolExecutor(max_workers=1)
+        self._next_future = None
+
+        self.clips = None  # uint8 CPU tensor (batch_size, clip_dur, H, W, 3)
 
         self.std = 1
         self.mean = 0
-        mp.set_start_method('spawn')
 
-        self.procs = 12
-        self.proc_id = 0
-        for proc in range(self.procs):
-            setattr(self, "parallel_proc{}".format(proc), None)
-            setattr(self, "return_arr{}".format(proc),
-                    torch.zeros((batch_size, 2, 224, 224, 3), device="cuda:3" if self.gpu else "cpu").share_memory_())
+    def _sample_one_clip(self):
+        vi = int(np.random.choice(len(self.videos), p=self.video_probs))
+        _, frames = self.videos[vi]
+        start = random.randint(0, len(frames) - self.clip_dur)
+        return _load_clip(frames, start, self.clip_dur, self.img_size)
 
-    def parallel_generate(self, proc_id=None):
-        if proc_id is not None:
-            setattr(self, "parallel_proc{}".format(proc_id), Process(
-                target=lazy_load_surgical,
-                args=(getattr(self, "return_arr{}".format(proc_id)),self.root, self.gpu)))
-            getattr(self, "parallel_proc{}".format(proc_id)).start()
-        else:
-            for proc in range(self.procs):
-                setattr(self, "parallel_proc{}".format(proc), Process(
-                    target=lazy_load_surgical,
-                    args=(getattr(self, "return_arr{}".format(proc)), self.root, self.gpu)))
-                getattr(self, "parallel_proc{}".format(proc)).start()
+    def _fill_clips(self):
+        buf = np.empty(
+            (self.batch_size, self.clip_dur, self.img_size, self.img_size, 3),
+            dtype=np.uint8,
+        )
+        futures = [self._inner.submit(self._sample_one_clip) for _ in range(self.batch_size)]
+        for i, f in enumerate(futures):
+            buf[i] = f.result()
+        return torch.from_numpy(buf)
 
+    def parallel_generate(self):
+        """Prime the pipeline: fill the current buffer and queue the next one."""
+        if self.clips is None:
+            self.clips = self._fill_clips()
+        if self._next_future is None:
+            self._next_future = self._outer.submit(self._fill_clips)
 
     def generate_dataset(self, parallel_call=False):
-        """
-        We want to take random clip segments from videos
-        todo: randomize the video "speed" interpolating between frames?
-        """
+        """Swap in the background-filled buffer and queue the next refill."""
         if parallel_call:
-            # wait for process to return dataset
-            getattr(self, "parallel_proc{}".format(self.proc_id)).join()
-            # get return array from parallel process
-            self.clips = getattr(self, "return_arr{}".format(self.proc_id)).clone()
-            # calculate length
-            self.num_clips= self.clips.shape[0]
-            # regenerate process
-            self.parallel_generate(proc_id=self.proc_id)
-            # set pointer to next process
-            self.proc_id = (self.proc_id + 1) % self.procs
-            return
-        lazy_load_dataset = lazy_load_surgical(root=self.root, arr=None, gpu=self.gpu)
-        self.clips = lazy_load_dataset
-        self.clips = [torch.tensor(_, device="cuda:3" if self.gpu else "cpu").unsqueeze(0).clone().detach() for _ in self.clips]
-        self.clips = torch.cat(self.clips, dim=0)
-        self.num_clips = len(self.clips)
+            if self._next_future is None:
+                self.parallel_generate()
+                return
+            self.clips = self._next_future.result()
+            self._next_future = self._outer.submit(self._fill_clips)
+        else:
+            self.clips = self._fill_clips()
 
     def __len__(self):
         return self.total_frames
 
     def get(self, idx):
-        # Define the resize transformation
-        clips = self.clips[idx].squeeze()
-        inp = (clips[:, 0:1, :, :, :] / 255.0).contiguous().float().squeeze().permute(0, 2, 3, 1).permute(0, 2, 3, 1)
-        out = (clips[:, 1:2, :, :, :] / 255.0).contiguous().float().squeeze().permute(0, 2, 3, 1).permute(0, 2, 3, 1)
-        inp = F.interpolate(inp, size=(224, 224), mode='bilinear', align_corners=False)
-        out = F.interpolate(out, size=(224, 224), mode='bilinear', align_corners=False)
+        """Return (inp, out) batch tensors of shape (n, C, H, W), float in [0, 1].
+
+        inp = frame t, out = frame t+1 (or diff if predict_change).
+        `idx`: LongTensor of indices into self.clips (length <= batch_size).
+        """
+        clips = self.clips[idx]  # (n, clip_dur, H, W, 3) uint8, CPU
+        inp = clips[:, 0].permute(0, 3, 1, 2).float() / 255.0
+        out = clips[:, 1].permute(0, 3, 1, 2).float() / 255.0
+        if inp.shape[-1] != self.img_size or inp.shape[-2] != self.img_size:
+            inp = F.interpolate(inp, size=(self.img_size, self.img_size),
+                                mode="bilinear", align_corners=False)
+            out = F.interpolate(out, size=(self.img_size, self.img_size),
+                                mode="bilinear", align_corners=False)
         if self.predict_change:
             out = out - inp
         return inp, out
 
 
 def load_data(num_images, data_root, num_workers, predict_change=False, gpu=True):
-    train_set = SurgicalDataset(
+    return SurgicalDataset(
         root=data_root, is_train=True, batch_size=num_images,
-        n_frames_input=1, n_frames_output=1, predict_change=predict_change, gpu=gpu)
-    return train_set
+        n_frames_input=1, n_frames_output=1,
+        predict_change=predict_change, gpu=gpu,
+    )
+
 
 def finetune_data(num_images, data_root, num_workers, predict_change=False):
-    train_set = SurgicalDataset(
+    return SurgicalDataset(
         root=data_root, is_train=True, batch_size=num_images, finetune=True,
-        n_frames_input=1, n_frames_output=1, predict_change=predict_change)
-    return train_set
+        n_frames_input=1, n_frames_output=1, predict_change=predict_change,
+    )
+
 
 if __name__ == "__main__":
-    dataloader_train = load_data(10000, 1, "./data/", 1)
-    import nvsmi
-    print(nvsmi.get_gpu_processes())
+    import sys
+    ds = load_data(num_images=16, data_root=sys.argv[1], num_workers=1, gpu=False)
+    ds.parallel_generate()
+    ds.generate_dataset(parallel_call=True)
+    inp, out = ds.get(torch.arange(4))
+    print(inp.shape, out.shape, inp.dtype, inp.min().item(), inp.max().item())
