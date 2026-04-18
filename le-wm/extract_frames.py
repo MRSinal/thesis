@@ -23,11 +23,28 @@ Notes:
 import argparse
 import concurrent.futures as cf
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".m4v"}
+
+
+def _resolve_ffmpeg():
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        raise RuntimeError(
+            "ffmpeg not found on PATH. Install with: uv add imageio-ffmpeg"
+        )
+
+
+FFMPEG = _resolve_ffmpeg()
 
 
 def extract_one(video_path: Path, out_dir: Path, img_size: int, quality: int, every: int):
@@ -43,7 +60,7 @@ def extract_one(video_path: Path, out_dir: Path, img_size: int, quality: int, ev
         vf = f"select='not(mod(n\\,{every}))',{vf}"
 
     cmd = [
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
         "-i", str(video_path),
         "-vf", vf,
         "-vsync", "vfr",
