@@ -211,3 +211,5 @@ __marimo__/
 
 # Custom
 data/*
+.hydra/*
+
