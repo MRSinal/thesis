@@ -7,7 +7,6 @@ import torch
 import torch.utils.data as data
 
 # Avoid oversubscription: each DataLoader worker gets its own process,
-# and cv2 by default spawns threads per process.
 cv2.setNumThreads(0)
 
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
