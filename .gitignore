@@ -213,3 +213,10 @@ __marimo__/
 data/*
 .hydra/*
 
+le-wm/environment*
+le-wm/requirements_frozen*
+
+slurm.*
+
+le-wm/outputs/*
+le-wm/jepa/*

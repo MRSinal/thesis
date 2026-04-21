@@ -6638,3 +6638,6 @@ Failed initializing scaling graph (Resource temporarily unavailable): fmt:yuv420
 [swscaler @ 0x46bcf980] Failed initializing scaling graph (Resource temporarily unavailable): fmt:yuv420p csp:bt709 prim:bt709 trc:bt709 -> fmt:bgr24 csp:gbr prim:unknown trc:unknown
 [swscaler @ 0x48024440] Failed initializing scaling graph (Resource temporarily unavailable): fmt:yuv420p csp:bt709 prim:bt709 trc:bt709 -> fmt:bgr24 csp:gbr prim:unknown trc:unknown
 [swscaler @ 0x487a4580] Failed initializing scaling graph (Resource temporarily unavailable): fmt:yuv420p csp:bt709 prim:bt709 trc:bt709 -> fmt:bgr24 csp:gbr prim:unknown trc:unknown
+slurmstepd-cerulean: error: *** JOB 44775 ON cerulean CANCELLED AT 2026-04-18T15:25:07 ***
+[rank: 0] Received SIGTERM: 15
+[rank: 0] Received SIGTERM: 15

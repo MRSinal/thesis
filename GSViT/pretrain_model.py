@@ -181,7 +181,7 @@ if __name__ == "__main__":
         from dataloader_surgical import load_data
         dataset = load_data(
             num_images=batch_size, 
-            data_root="../PitVis/videos/", 
+            data_root="../data/PitViS/frames", 
             num_workers=1,
             gpu=torch.cuda.is_available(),
             predict_change=predict_change,)
@@ -221,7 +221,6 @@ if __name__ == "__main__":
 
                 reconstruct_loss += batch_loss.item()
 
-            reconstruct_loss.backward()
             optim.step()
             lr_scheduler.step()
 
@@ -233,7 +232,7 @@ if __name__ == "__main__":
             filter_run_long = 0.997
             filter_run_short = 0.98
             itr_end = time.time()
-            print_loss = reconstruct_loss.detach().cpu().numpy()
+            print_loss = float(reconstruct_loss)
             if _itr == 0 and _epoch_itr == 0:
                 running_loss = print_loss
                 running_loss_lg = print_loss

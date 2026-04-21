@@ -9,7 +9,8 @@ import torch.nn.functional as F
 import torch.utils.data as data
 
 # Avoid thread oversubscription: the async pipeline already uses a thread pool.
-cv2.setNumThreads(0)
+if hasattr(cv2, "setNumThreads"):
+	cv2.setNumThreads(0)
 
 FRAME_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
