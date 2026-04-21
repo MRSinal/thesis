@@ -259,7 +259,7 @@ if __name__ == "__main__":
             if (_itr+1) % 1000 == 0:
                 #with open("evit_save/saved_network{}_{}.pkl".format(_epoch_itr, _itr//1000), "wb") as f:
                 #    pickle.dump(evitae.state_dict(), f)
-                torch.save(evitae.state_dict(), "evit_train2/saved_network{}_{}.pkl".format(_epoch_itr, _itr//1000))
+                torch.save(evitae.state_dict(), "./evit_train2/saved_network{}_{}.pkl".format(_epoch_itr, _itr//1000))
             if (_itr+1) % 50 == 0:
                 first_image = images[0].cpu()
                 #first_image = cv2.cvtColor(first_image, cv2.COLOR_BGR2RGB)
