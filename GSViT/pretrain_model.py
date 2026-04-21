@@ -181,7 +181,7 @@ if __name__ == "__main__":
         from dataloader_surgical import load_data
         dataset = load_data(
             num_images=batch_size, 
-            data_root="../PitVis/videos/", 
+            data_root="../PitVis/videos", 
             num_workers=1,
             gpu=torch.cuda.is_available(),
             predict_change=predict_change,)
@@ -221,7 +221,6 @@ if __name__ == "__main__":
 
                 reconstruct_loss += batch_loss.item()
 
-            reconstruct_loss.backward()
             optim.step()
             lr_scheduler.step()
 

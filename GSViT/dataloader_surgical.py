@@ -65,7 +65,7 @@ class SurgicalDataset(data.Dataset):
         self.n_frames_total = n_frames_input + n_frames_output
         self.clip_dur = self.n_frames_total
 
-        self.videos = [] 
+        self.videos = []  
         total = 0
         for name in sorted(os.listdir(root)):
             vdir = os.path.join(root, name)
