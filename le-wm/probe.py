@@ -1,25 +1,24 @@
-"""Layer-wise linear probing for a pretrained JEPA encoder.
+"""Layer-wise probing for a pretrained JEPA encoder.
 
 Loads a pretrained JEPA checkpoint, freezes the encoder, extracts CLS token
 features from every transformer layer for a labeled dataset, then trains a
-linear classifier per layer and reports Accuracy, Precision (macro), and
-Recall (macro).
+probe (linear or MLP, controlled by `probe.type`) per layer and reports
+Accuracy, F1 (macro), and Jaccard index (macro).
 
 Run with:
     python probe.py --config-name cholec80 ckpt_path=/path/to/ckpt
 """
 
+import csv
 import importlib
-import json
 from pathlib import Path
 
 import hydra
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from omegaconf import OmegaConf
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from torch.utils.data import DataLoader, random_split
+from sklearn.metrics import accuracy_score, f1_score, jaccard_score
+from torch.utils.data import DataLoader
 
 
 def load_dataset(spec, kwargs):
@@ -28,6 +27,23 @@ def load_dataset(spec, kwargs):
     module = importlib.import_module(module_path)
     cls = getattr(module, class_name)
     return cls(**dict(kwargs))
+
+
+def build_probe(in_dim, num_classes, cfg):
+    """Linear or MLP head, selected by cfg.probe.type."""
+    t = cfg.probe.type
+    if t == "linear":
+        return nn.Linear(in_dim, num_classes)
+    if t == "mlp":
+        h = cfg.probe.get("hidden_dim") or in_dim * 2
+        d = cfg.probe.get("dropout") or 0.0
+        return nn.Sequential(
+            nn.Linear(in_dim, h),
+            nn.GELU(),
+            nn.Dropout(d),
+            nn.Linear(h, num_classes),
+        )
+    raise ValueError(f"Unknown probe.type: {t!r} (expected 'linear' or 'mlp')")
 
 
 @torch.no_grad()
@@ -70,9 +86,9 @@ def extract_features(encoder, loader, device):
 
 
 def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device):
-    """Train a single linear probe and return val metrics dict."""
+    """Train a single probe (linear or MLP) and return val metrics dict."""
     in_dim = train_x.size(1)
-    probe = nn.Linear(in_dim, num_classes).to(device)
+    probe = build_probe(in_dim, num_classes, cfg).to(device)
     opt = torch.optim.AdamW(
         probe.parameters(), lr=cfg.probe.lr, weight_decay=cfg.probe.weight_decay
     )
@@ -102,11 +118,9 @@ def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device):
 
     return {
         "accuracy": float(accuracy_score(val_y_np, preds)),
-        "precision": float(
-            precision_score(val_y_np, preds, average="macro", zero_division=0)
-        ),
-        "recall": float(
-            recall_score(val_y_np, preds, average="macro", zero_division=0)
+        "f1": float(f1_score(val_y_np, preds, average="macro", zero_division=0)),
+        "jaccard": float(
+            jaccard_score(val_y_np, preds, average="macro", zero_division=0)
         ),
     }
 
@@ -128,13 +142,10 @@ def run(cfg):
     ##   loading dataset    ##
     ##########################
     print(f"Loading dataset: {cfg.dataset.module}")
-    dataset = load_dataset(cfg.dataset.module, cfg.dataset.kwargs)
-    n_total = len(dataset)
-    n_train = int(cfg.probe.train_split * n_total)
-    n_val = n_total - n_train
-    rnd = torch.Generator().manual_seed(cfg.seed)
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=rnd)
-    print(f"Dataset: {n_total} samples ({n_train} train / {n_val} val)")
+    ds_kwargs = {**cfg.dataset.kwargs, "seed": cfg.seed}
+    train_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "train"})
+    val_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "val"})
+    print(f"Dataset: {len(train_set)} train / {len(val_set)} val")
 
     train_loader = DataLoader(train_set, shuffle=False, **cfg.loader)
     val_loader = DataLoader(val_set, shuffle=False, **cfg.loader)
@@ -172,7 +183,7 @@ def run(cfg):
     ##########################
 
     results = []
-    print(f"\n{'layer':>6} | {'accuracy':>10} | {'precision':>10} | {'recall':>10}")
+    print(f"\n{'layer':>6} | {'accuracy':>10} | {'f1':>10} | {'jaccard':>10}")
     print("-" * 46)
     for layer in range(num_layers):
         metrics = train_probe(
@@ -186,38 +197,42 @@ def run(cfg):
         results.append(metrics)
         print(
             f"{layer:>6} | {metrics['accuracy']:>10.4f} | "
-            f"{metrics['precision']:>10.4f} | {metrics['recall']:>10.4f}"
+            f"{metrics['f1']:>10.4f} | {metrics['jaccard']:>10.4f}"
         )
 
     ##########################
     ##   logging and dump   ##
     ##########################
 
+    fieldnames = ["layer", "accuracy", "f1", "jaccard"]
+    csv_path = Path(cfg.results_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(csv_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        for r in results:
+            w.writerow({k: r[k] for k in fieldnames})
+    print(f"\nResults saved to: {csv_path}")
+
     if cfg.wandb.enabled:
         import wandb
         run = wandb.init(**cfg.wandb.config)
-        run.log_hyperparams = None 
         for r in results:
             wandb.log(
                 {
                     "probe/accuracy": r["accuracy"],
-                    "probe/precision": r["precision"],
-                    "probe/recall": r["recall"],
+                    "probe/f1": r["f1"],
+                    "probe/jaccard": r["jaccard"],
                 },
                 step=r["layer"],
             )
-        wandb.finish()
-    
-
-    out_path = Path(cfg.results_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w") as f:
-        json.dump(
-            {"cfg": OmegaConf.to_container(cfg), "results": results},
-            f,
-            indent=2,
+        table = wandb.Table(
+            columns=fieldnames,
+            data=[[r[k] for k in fieldnames] for r in results],
         )
-    print(f"\nResults saved to: {out_path}")
+        wandb.log({"probe/results_table": table})
+        wandb.save(str(csv_path))
+        wandb.finish()
 
 
 if __name__ == "__main__":

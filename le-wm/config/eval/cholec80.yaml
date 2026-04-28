@@ -1,11 +1,15 @@
 defaults:
   - _self_
 
-ckpt_path: ???  # path to pretrained JEPA *_object.ckpt
+ckpt_path: /home/u941663/thesis/le-wm/checkpoints/lewm_surgical_epoch_9_object.ckpt # path to pretrained JEPA *_object.ckpt
 
 dataset:
-  module: dataset_cholec80:Cholec80Dataset  # "module.path:ClassName"
-  kwargs: {}                                 # passed as **kwargs to the class
+  module: dataset_cholec80:Cholec80Dataset
+  kwargs:
+    frames_root: /home/u941663/thesis/data/cholec80/frames
+    phase_root: /home/u941663/thesis/data/cholec80/phase_annotations
+    train_ratio: 0.6
+    img_size: 224
   num_classes: 7
 
 img_size: 224
@@ -18,14 +22,16 @@ loader:
   pin_memory: True
 
 probe:
+  type: linear        # "linear" or "mlp"
+  hidden_dim: null    # mlp only; defaults to 2 * in_dim if null
+  dropout: 0.0        # mlp only
   epochs: 20
   lr: 1.0e-3
   weight_decay: 1.0e-4
-  train_split: 0.8
   inner_batch_size: 4096
 
 feature_cache: null  # e.g. ./cache/cholec80_features.pt
-results_path: probe_results_cholec80.json
+results_path: probe_results_cholec80.csv
 
 wandb:
   enabled: True

@@ -1,3 +1,5 @@
+import argparse
+import os
 import cv2
 import time
 import torch
@@ -6,12 +8,20 @@ from PIL import Image
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.nn.parallel import DataParallel
+from torch.profiler import (
+    ProfilerActivity,
+    profile as torch_profile,
+    record_function,
+    schedule as profile_schedule,
+    tensorboard_trace_handler,
+)
 from torchvision.transforms import ToPILImage
 from torch.optim.lr_scheduler import LinearLR
 
 import wandb
 
-from EfficientViT.classification.model.build import EfficientViT_M5
+from EfficientViT.classification.model.build import EfficientViT_M0
+
 
 
 class SEAttention(nn.Module):
@@ -39,7 +49,7 @@ class Decoder(nn.Module):
         self.predict_change = predict_change
 
         # Initial representation
-        self.fc = nn.Linear(384*4*4, 7 * 7 * 1024)
+        self.fc = nn.Linear(192*4*4, 7 * 7 * 1024)
         self.bn1d = nn.BatchNorm1d(7 * 7 * 1024)
         self.gelu = nn.GELU()
 
@@ -94,7 +104,7 @@ class Decoder(nn.Module):
             self.tanh = nn.Tanh()
 
     def forward(self, x):
-        x = self.fc(x.reshape(self.in_size, 384*4*4))
+        x = self.fc(x.flatten(1)) 
         x = self.bn1d(x)
         x = self.gelu(x)
         x = x.view(-1, 1024, 7, 7)
@@ -119,7 +129,7 @@ class EfficientViTAutoEncoder(nn.Module):
         self.decoder = Decoder(in_size, predict_change)
         # Using M5, should use the least complex ViT M0
         # NOTE: Its pretrained!
-        self.evit = EfficientViT_M5(pretrained='efficientvit_m5')
+        self.evit = EfficientViT_M0(pretrained='efficientvit_m0')
         # remove the classification head
         self.evit = torch.nn.Sequential(*list(self.evit.children())[:-1])
 
@@ -131,16 +141,23 @@ class EfficientViTAutoEncoder(nn.Module):
 
 
 if __name__ == "__main__":
-    # linear schedule
-    epochs = 5
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", action="store_true",
+                        help="Run ~8 iters under torch.profiler, write a trace, exit.")
+    parser.add_argument("--profile-dir", default="./profiler_logs")
+    args = parser.parse_args()
+
+    # CNN benchmark
+    torch.backends.cudnn.benchmark = True
+    epochs = 10
     in_size = 100
-    batch_size = 100
+    batch_size = 128
     data_processed = 0
 
     lr_start = 1e-3
     lr_finish = 1e-5
 
-    gpu_parallel = False
+    gpu_parallel = True
     data_parallel = True
     custom_dataset = True
     predict_change = False
@@ -169,6 +186,7 @@ if __name__ == "__main__":
     run = wandb.init(
         entity="mrsinal-tilburg-university",
         project="GSViT",
+        mode="disabled" if args.profile else "online",
         config={
             "epochs":epochs,
             "in_size":in_size,
@@ -181,8 +199,8 @@ if __name__ == "__main__":
         from dataloader_surgical import load_data
         dataset = load_data(
             num_images=batch_size, 
-            data_root="../data/PitViS/frames", 
-            num_workers=1,
+            data_root="../data/all_frames/", 
+            num_workers=12,
             gpu=torch.cuda.is_available(),
             predict_change=predict_change,)
         dataset.parallel_generate()
@@ -194,7 +212,25 @@ if __name__ == "__main__":
     total_iters = itrs_per_epoch * epochs
     lr_scheduler = LinearLR(optim, start_factor=1.0, end_factor=lr_finish/lr_start, total_iters=total_iters)
 
-    for _epoch_itr in range(epochs):
+    PROFILE_WAIT, PROFILE_WARMUP, PROFILE_ACTIVE = 1, 2, 5
+    PROFILE_STEPS = PROFILE_WAIT + PROFILE_WARMUP + PROFILE_ACTIVE
+    if args.profile:
+        os.makedirs(args.profile_dir, exist_ok=True)
+        prof = torch_profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            schedule=profile_schedule(wait=PROFILE_WAIT, warmup=PROFILE_WARMUP,
+                                      active=PROFILE_ACTIVE, repeat=1),
+            on_trace_ready=tensorboard_trace_handler(args.profile_dir),
+            record_shapes=True,
+            profile_memory=True,
+        )
+        prof.__enter__()
+    else:
+        prof = None
+
+    profile_iter = 0
+    try:
+      for _epoch_itr in range(epochs):
         for _itr in range(itrs_per_epoch):
             itr_start = time.time()
             reconstruct_loss = 0
@@ -208,25 +244,28 @@ if __name__ == "__main__":
             for mb_ind in range(len(minibatches)):
                 data_processed += in_size
                 if custom_dataset:
-                    images, targets = dataset.get(minibatches[mb_ind])
-                    images = images.to(device)
-                    targets = targets.to(device)
+                    with record_function("data_fetch"):
+                        images, targets = dataset.get(minibatches[mb_ind])
+                        images = images.to(device, non_blocking=True)
+                        targets = targets.to(device, non_blocking=True)
                 else:
                     target = images
-                decoded = evitae(images)
+                with record_function("forward"):
+                    decoded = evitae(images)
+                    batch_loss = criterion(decoded, targets)
 
-                batch_loss = criterion(decoded, targets)
-                
-                (batch_loss / len(minibatches)).backward()
+                with record_function("backward"):
+                    (batch_loss / len(minibatches)).backward()
 
                 reconstruct_loss += batch_loss.item()
 
             optim.step()
             lr_scheduler.step()
 
-            optim.zero_grad()
+            optim.zero_grad(set_to_none=True)
             t = time.time()
-            dataset.generate_dataset(parallel_call=True)
+            with record_function("next_batch"):
+                dataset.generate_dataset(parallel_call=True)
 
             filter_res = 0.99
             filter_run_long = 0.997
@@ -263,12 +302,24 @@ if __name__ == "__main__":
             if (_itr+1) % 50 == 0:
                 first_image = images[0].cpu()
                 #first_image = cv2.cvtColor(first_image, cv2.COLOR_BGR2RGB)
-                first_decoded = decoded[0].cpu()
+                first_decoded = decoded[0].detach().cpu()
                 #first_decoded = cv2.cvtColor(decoded[0].cpu(), cv2.COLOR_BGR2RGB)
                 first_tensor = torch.cat((first_image, first_decoded), dim=2)
                 first_tensor = first_tensor / first_tensor.max()
                 to_pil = ToPILImage()
                 image = to_pil(first_tensor)
                 image.save('output_image.png')
+
+            if prof is not None:
+                prof.step()
+                profile_iter += 1
+                if profile_iter >= PROFILE_STEPS:
+                    print(f"[profile] {PROFILE_STEPS} steps collected → trace in {args.profile_dir}")
+                    raise StopIteration
+    except StopIteration:
+        pass
+    finally:
+      if prof is not None:
+        prof.__exit__(None, None, None)
 
 

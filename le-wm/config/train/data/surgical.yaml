@@ -1,3 +1,5 @@
 video_roots:
   - ../data/PitViS/frames
+  - ../data/CATARACTS/frames
+  - ../data/JIGSAWS/frames
 frameskip: 5

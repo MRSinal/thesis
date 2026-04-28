@@ -170,7 +170,7 @@ def run(cfg):
     ##########################
 
     run_id = cfg.get("subdir") or ""
-    run_dir = Path(swm.data.utils.get_cache_dir(), run_id)
+    run_dir = Path("thesis/le-wm/", run_id) 
 
     logger = None
     if cfg.wandb.enabled:

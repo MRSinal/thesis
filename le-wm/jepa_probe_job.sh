@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-cd /home/u941663/thesis/GSViT/
+cd /home/u941663/thesis/le-wm/
 
 echo "[host] $(hostname)  [date] $(date -Iseconds)"
 nvidia-smi || true
@@ -28,4 +28,4 @@ then
     exit 1
 fi
 
-uv run pretrain_model.py
+uv run probe.py --config-name cholec80
