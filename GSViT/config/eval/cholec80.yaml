@@ -1,7 +1,7 @@
 defaults:
   - _self_
 
-ckpt_path: /home/u941663/thesis/le-wm/checkpoints/lewm_surgical_epoch_9_object.ckpt # path to pretrained JEPA *_object.ckpt
+ckpt_path: /home/u941663/thesis/GSViT/GSViT.pkl  # path to pretrained GSViT weights
 
 dataset:
   module: dataset_cholec80:Cholec80Dataset
@@ -33,12 +33,12 @@ probe:
   cv_folds: 5
   selection_metric: accuracy   # accuracy | f1 | jaccard
 
-feature_cache: null  # e.g. ./cache/cholec80_features.pt
-results_path: probe_results_cholec80.csv
+feature_cache: null  # e.g. ./cache/gsvit_cholec80_features.pt
+results_path: probe_results_gsvit_cholec80.csv
 
 wandb:
   enabled: True
   config:
-    entity: mrsinal-tilburg-university
+    entity: mrsinal-tilburg-univeristy
     project: jepa
-    name: probe_cholec80
+    name: probe_gsvit_cholec80

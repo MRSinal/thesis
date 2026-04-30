@@ -1,18 +1,24 @@
-"""Layer-wise probing for a pretrained JEPA encoder.
+"""Layer-wise probing for the pretrained GSViT (EfficientViT-M5) encoder.
 
-Loads a pretrained JEPA checkpoint, freezes the encoder, extracts
-spatiotemporally-pooled features from every transformer layer for a labeled
-dataset, then trains a probe (linear or MLP) per layer with a hyperparameter
-sweep under 5-fold grouped cross-validation. Reports Accuracy, F1 (macro), and
-Jaccard (macro) as mean ± std across folds.
+Mirrors le-wm/probe.py: spatiotemporally-pooled per-layer features, 20-config
+sweep, 5-fold grouped CV, mean ± std across folds.
+
+GSViT differs from the JEPA ViT in three ways:
+  - EfficientViT is a CNN-ViT hybrid producing (B, C, H', W') feature maps,
+    not token sequences with a CLS token.
+  - There is no `output_hidden_states` API; per-layer features are captured
+    via forward hooks on the direct children of patch_embed/blocks{1,2,3}.
+  - The published model expects BGR channel order (see process_inputs in
+    load_gsvit.py); the probe applies the channel flip before each forward.
 
 Run with:
-    python probe.py --config-name cholec80 ckpt_path=/path/to/ckpt
+    python probe.py --config-name cholec80 ckpt_path=/path/to/GSViT.pkl
 """
 
 import csv
 import importlib
 import itertools
+import sys
 from pathlib import Path
 
 import hydra
@@ -24,6 +30,13 @@ from sklearn.metrics import accuracy_score, f1_score, jaccard_score
 from sklearn.model_selection import GroupKFold
 from torch.utils.data import DataLoader
 
+# Reuse Cholec80 dataset module from le-wm without copying it.
+_LEWM = (Path(__file__).resolve().parent.parent / "le-wm").as_posix()
+if _LEWM not in sys.path:
+    sys.path.insert(0, _LEWM)
+
+from load_gsvit import EfficientViT as GSViTWrapper  # noqa: E402
+
 
 def load_dataset(spec, kwargs):
     """spec: 'module.path:ClassName'"""
@@ -34,7 +47,6 @@ def load_dataset(spec, kwargs):
 
 
 def build_probe(in_dim, num_classes, cfg):
-    """Linear or MLP head, selected by cfg.probe.type."""
     t = cfg.probe.type
     if t == "linear":
         return nn.Linear(in_dim, num_classes)
@@ -47,59 +59,89 @@ def build_probe(in_dim, num_classes, cfg):
             nn.Dropout(d),
             nn.Linear(h, num_classes),
         )
-    raise ValueError(f"Unknown probe.type: {t!r} (expected 'linear' or 'mlp')")
+    raise ValueError(f"Unknown probe.type: {t!r}")
+
+
+def bgr_flip(images):
+    """In-place BGR<->RGB swap on (B, C, H, W) tensors. Matches load_gsvit.process_inputs."""
+    out = images.clone()
+    out[:, 0], out[:, 2] = images[:, 2], images[:, 0]
+    return out
+
+
+def collect_hook_targets(evit_seq):
+    """Return ordered list of submodules to hook for per-layer features.
+
+    `evit_seq` is the Sequential [patch_embed, blocks1, blocks2, blocks3].
+    Layer 0 is the patch_embed output; subsequent layers are the direct
+    children of each blocksN (mix of EfficientViTBlock and downsample modules).
+    """
+    targets = [("patch_embed", evit_seq[0])]
+    for stage_idx in (1, 2, 3):
+        stage = evit_seq[stage_idx]
+        for child_idx, child in enumerate(stage):
+            targets.append((f"blocks{stage_idx}.{child_idx}", child))
+    return targets
 
 
 @torch.no_grad()
-def extract_features(encoder, loader, device):
-    """Run the encoder once over the loader and stack per-layer pooled features.
+def extract_features(evit_seq, hook_targets, loader, device):
+    """Run the encoder once over the loader and collect per-layer pooled features.
 
-    Pooling: mean over patch tokens (excluding CLS) per layer; if pixels arrive
-    as (B, T, C, H, W), also mean over T so each clip yields one feature vector.
+    Returns a list of length L; entry ℓ is a (N, D_ℓ) tensor on CPU.
+    Per-layer feature dim differs because EfficientViT widens with depth, so we
+    keep a list-of-tensors instead of a stacked (N, L, D) tensor.
 
-    Returns:
-        feats: (N, L, D) tensor (L = num_hidden_layers + 1)
-        labels: (N,) long tensor
+    Pooling: mean over (H', W'); if pixels arrive 5D, also mean over T.
     """
-    encoder.eval()
-    all_feats = []
+    evit_seq.eval()
+
+    feat_buffer = {}
+    handles = []
+    for i, (_, mod) in enumerate(hook_targets):
+        def make_hook(idx):
+            def _hook(_m, _inp, out):
+                feat_buffer[idx] = out
+            return _hook
+        handles.append(mod.register_forward_hook(make_hook(i)))
+
+    L = len(hook_targets)
+    per_layer = [[] for _ in range(L)]
     all_labels = []
 
-    for batch in loader:
-        pixels = batch["pixels"].to(device).float()
-        labels = batch["label"]
+    try:
+        for batch in loader:
+            pixels = batch["pixels"].to(device).float()
+            labels = batch["label"]
 
-        was_5d = pixels.dim() == 5
-        if was_5d:
-            B, T = pixels.shape[:2]
-            pixels = pixels.reshape(B * T, *pixels.shape[2:])
+            was_5d = pixels.dim() == 5
+            if was_5d:
+                B, T = pixels.shape[:2]
+                pixels = pixels.reshape(B * T, *pixels.shape[2:])
 
-        output = encoder(
-            pixels,
-            interpolate_pos_encoding=True,
-            output_hidden_states=True,
-        )
-        # (B', L, D) — drop CLS at index 0, mean over patch tokens
-        pooled_per_layer = torch.stack(
-            [h[:, 1:].mean(dim=1).cpu() for h in output.hidden_states], dim=1
-        )
+            pixels = bgr_flip(pixels)
+            feat_buffer.clear()
+            evit_seq(pixels)
 
-        if was_5d:
-            L, D = pooled_per_layer.shape[1], pooled_per_layer.shape[2]
-            pooled_per_layer = pooled_per_layer.reshape(B, T, L, D).mean(dim=1)
-        # else: pooled_per_layer is already (B, L, D)
+            for ell in range(L):
+                fmap = feat_buffer[ell]            # (B', C_ℓ, H', W')
+                pooled = fmap.mean(dim=(2, 3))     # (B', C_ℓ)
+                if was_5d:
+                    pooled = pooled.reshape(B, T, -1).mean(dim=1)  # (B, C_ℓ)
+                per_layer[ell].append(pooled.cpu())
 
-        all_feats.append(pooled_per_layer)
-        all_labels.append(labels.cpu().long())
+            all_labels.append(labels.cpu().long())
+    finally:
+        for h in handles:
+            h.remove()
 
-    feats = torch.cat(all_feats, dim=0)
+    feats_list = [torch.cat(x, dim=0) for x in per_layer]
     labels = torch.cat(all_labels, dim=0)
-    return feats, labels
+    return feats_list, labels
 
 
 def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device,
                 lr, weight_decay):
-    """Train a single probe (linear or MLP) and return val metrics dict."""
     in_dim = train_x.size(1)
     probe = build_probe(in_dim, num_classes, cfg).to(device)
     opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=weight_decay)
@@ -136,17 +178,29 @@ def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device,
     }
 
 
+def load_gsvit_encoder(ckpt_path, device):
+    """Load GSViT.pkl into the EfficientViT wrapper and return the head-stripped Sequential."""
+    wrapper = GSViTWrapper(in_size=1)
+    state = torch.load(ckpt_path, map_location=device)
+    wrapper.load_state_dict(state)
+    evit_seq = wrapper.evit.to(device)
+    evit_seq.eval()
+    for p in evit_seq.parameters():
+        p.requires_grad_(False)
+    return evit_seq
+
+
 @hydra.main(version_base=None, config_path="./config/eval", config_name="cholec80")
 def run(cfg):
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
 
     print(f"Loading checkpoint: {cfg.ckpt_path}")
-    model = torch.load(cfg.ckpt_path, map_location=device, weights_only=False)
-    encoder = model.encoder.to(device)
-    encoder.eval()
-    for p in encoder.parameters():
-        p.requires_grad_(False)
+    evit_seq = load_gsvit_encoder(cfg.ckpt_path, device)
+    hook_targets = collect_hook_targets(evit_seq)
+    print(f"Hookable layers: {len(hook_targets)}")
+    for i, (name, _) in enumerate(hook_targets):
+        print(f"  layer {i}: {name}")
 
     ##########################
     ##   loading dataset    ##
@@ -166,28 +220,34 @@ def run(cfg):
     if cache_path and cache_path.exists():
         print(f"Loading cached features: {cache_path}")
         cache = torch.load(cache_path)
-        feats, labels = cache["feats"], cache["labels"]
+        feats_list = cache["feats_list"]
+        labels = cache["labels"]
         cached_groups = np.asarray(cache["groups"])
         assert len(cached_groups) == len(groups), "cache size mismatch"
         groups = cached_groups
     else:
-        feats, labels = extract_features(encoder, loader, device)
+        feats_list, labels = extract_features(evit_seq, hook_targets, loader, device)
         if cache_path:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(
-                {"feats": feats, "labels": labels, "groups": groups.tolist()},
+                {
+                    "feats_list": feats_list,
+                    "labels": labels,
+                    "groups": groups.tolist(),
+                },
                 cache_path,
             )
             print(f"Cached features to: {cache_path}")
 
-    num_layers = feats.size(1)
-    print(f"Features: {tuple(feats.shape)} (layers={num_layers})")
+    num_layers = len(feats_list)
+    print(f"Per-layer feature dims: {[t.size(1) for t in feats_list]}")
 
     ##########################
     ##  fold + sweep grid   ##
     ##########################
+    n = labels.size(0)
     gkf = GroupKFold(n_splits=cfg.probe.cv_folds)
-    fold_indices = list(gkf.split(np.arange(len(feats)), groups=groups))
+    fold_indices = list(gkf.split(np.arange(n), groups=groups))
     for f_idx, (tr, va) in enumerate(fold_indices):
         assert set(groups[tr]).isdisjoint(set(groups[va])), \
             f"group leakage in fold {f_idx}"
@@ -206,8 +266,8 @@ def run(cfg):
     )
     print("-" * 84)
     for layer in range(num_layers):
-        layer_x = feats[:, layer]
-        per_fold_best = []  # list of dicts with metrics + chosen lr/wd
+        layer_x = feats_list[layer]
+        per_fold_best = []
         for f_idx, (tr, va) in enumerate(fold_indices):
             tr_x, tr_y = layer_x[tr], labels[tr]
             va_x, va_y = layer_x[va], labels[va]
