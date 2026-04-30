@@ -119,3 +119,10 @@ class Cholec80Dataset(ConcatDataset):
         if skipped:
             msg += f" ({skipped} skipped: missing phase file)"
         print(msg)
+
+    @property
+    def groups(self):
+        out = []
+        for vid_idx, vf in enumerate(self.datasets):
+            out.extend([vid_idx] * len(vf))
+        return out

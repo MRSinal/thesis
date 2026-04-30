@@ -1,9 +1,10 @@
 """Layer-wise probing for a pretrained JEPA encoder.
 
-Loads a pretrained JEPA checkpoint, freezes the encoder, extracts CLS token
-features from every transformer layer for a labeled dataset, then trains a
-probe (linear or MLP, controlled by `probe.type`) per layer and reports
-Accuracy, F1 (macro), and Jaccard index (macro).
+Loads a pretrained JEPA checkpoint, freezes the encoder, extracts
+spatiotemporally-pooled features from every transformer layer for a labeled
+dataset, then trains a probe (linear or MLP) per layer with a hyperparameter
+sweep under 5-fold grouped cross-validation. Reports Accuracy, F1 (macro), and
+Jaccard (macro) as mean ± std across folds.
 
 Run with:
     python probe.py --config-name cholec80 ckpt_path=/path/to/ckpt
@@ -11,13 +12,16 @@ Run with:
 
 import csv
 import importlib
+import itertools
 from pathlib import Path
 
 import hydra
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, f1_score, jaccard_score
+from sklearn.model_selection import GroupKFold
 from torch.utils.data import DataLoader
 
 
@@ -48,7 +52,10 @@ def build_probe(in_dim, num_classes, cfg):
 
 @torch.no_grad()
 def extract_features(encoder, loader, device):
-    """Run the encoder once over the loader and stack per-layer CLS features.
+    """Run the encoder once over the loader and stack per-layer pooled features.
+
+    Pooling: mean over patch tokens (excluding CLS) per layer; if pixels arrive
+    as (B, T, C, H, W), also mean over T so each clip yields one feature vector.
 
     Returns:
         feats: (N, L, D) tensor (L = num_hidden_layers + 1)
@@ -62,22 +69,27 @@ def extract_features(encoder, loader, device):
         pixels = batch["pixels"].to(device).float()
         labels = batch["label"]
 
-        # ViT expects (B, C, H, W). If user provides (B, T, C, H, W), flatten T into B.
-        if pixels.dim() == 5:
+        was_5d = pixels.dim() == 5
+        if was_5d:
             B, T = pixels.shape[:2]
             pixels = pixels.reshape(B * T, *pixels.shape[2:])
-            labels = labels.unsqueeze(1).expand(-1, T).reshape(-1)
 
         output = encoder(
             pixels,
             interpolate_pos_encoding=True,
             output_hidden_states=True,
         )
-        # TODO: Do we do this in ./jepa.py?
-        cls_per_layer = torch.stack(
-            [h[:, 0].cpu() for h in output.hidden_states], dim=1
+        # (B', L, D) — drop CLS at index 0, mean over patch tokens
+        pooled_per_layer = torch.stack(
+            [h[:, 1:].mean(dim=1).cpu() for h in output.hidden_states], dim=1
         )
-        all_feats.append(cls_per_layer)
+
+        if was_5d:
+            L, D = pooled_per_layer.shape[1], pooled_per_layer.shape[2]
+            pooled_per_layer = pooled_per_layer.reshape(B, T, L, D).mean(dim=1)
+        # else: pooled_per_layer is already (B, L, D)
+
+        all_feats.append(pooled_per_layer)
         all_labels.append(labels.cpu().long())
 
     feats = torch.cat(all_feats, dim=0)
@@ -85,13 +97,12 @@ def extract_features(encoder, loader, device):
     return feats, labels
 
 
-def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device):
+def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device,
+                lr, weight_decay):
     """Train a single probe (linear or MLP) and return val metrics dict."""
     in_dim = train_x.size(1)
     probe = build_probe(in_dim, num_classes, cfg).to(device)
-    opt = torch.optim.AdamW(
-        probe.parameters(), lr=cfg.probe.lr, weight_decay=cfg.probe.weight_decay
-    )
+    opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=weight_decay)
 
     train_x = train_x.to(device)
     train_y = train_y.to(device)
@@ -142,18 +153,16 @@ def run(cfg):
     from transformers.utils.output_capturing import _CAN_RECORD_REGISTRY
     _CAN_RECORD_REGISTRY[str(encoder.__class__)] = encoder._can_record_outputs
 
-    
     ##########################
     ##   loading dataset    ##
     ##########################
     print(f"Loading dataset: {cfg.dataset.module}")
     ds_kwargs = {**cfg.dataset.kwargs, "seed": cfg.seed}
-    train_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "train"})
-    val_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "val"})
-    print(f"Dataset: {len(train_set)} train / {len(val_set)} val")
+    dataset = load_dataset(cfg.dataset.module, ds_kwargs)
+    groups = np.asarray(dataset.groups)
+    print(f"Dataset: {len(dataset)} samples, {len(set(groups.tolist()))} groups")
 
-    train_loader = DataLoader(train_set, shuffle=False, **cfg.loader)
-    val_loader = DataLoader(val_set, shuffle=False, **cfg.loader)
+    loader = DataLoader(dataset, shuffle=False, **cfg.loader)
 
     ##########################
     ##     loading cached   ##
@@ -162,54 +171,98 @@ def run(cfg):
     if cache_path and cache_path.exists():
         print(f"Loading cached features: {cache_path}")
         cache = torch.load(cache_path)
-        train_feats, train_labels = cache["train_feats"], cache["train_labels"]
-        val_feats, val_labels = cache["val_feats"], cache["val_labels"]
+        feats, labels = cache["feats"], cache["labels"]
+        cached_groups = np.asarray(cache["groups"])
+        assert len(cached_groups) == len(groups), "cache size mismatch"
+        groups = cached_groups
     else:
-        train_feats, train_labels = extract_features(encoder, train_loader, device)
-        val_feats, val_labels = extract_features(encoder, val_loader, device)
+        feats, labels = extract_features(encoder, loader, device)
         if cache_path:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(
-                {
-                    "train_feats": train_feats,
-                    "train_labels": train_labels,
-                    "val_feats": val_feats,
-                    "val_labels": val_labels,
-                },
+                {"feats": feats, "labels": labels, "groups": groups.tolist()},
                 cache_path,
             )
             print(f"Cached features to: {cache_path}")
 
-    num_layers = train_feats.size(1)
-    print(f"Features: {tuple(train_feats.shape)} (layers={num_layers})")
+    num_layers = feats.size(1)
+    print(f"Features: {tuple(feats.shape)} (layers={num_layers})")
+
+    ##########################
+    ##  fold + sweep grid   ##
+    ##########################
+    gkf = GroupKFold(n_splits=cfg.probe.cv_folds)
+    fold_indices = list(gkf.split(np.arange(len(feats)), groups=groups))
+    for f_idx, (tr, va) in enumerate(fold_indices):
+        assert set(groups[tr]).isdisjoint(set(groups[va])), \
+            f"group leakage in fold {f_idx}"
+
+    sweep = list(itertools.product(cfg.probe.lr_grid, cfg.probe.weight_decay_grid))
+    print(f"CV folds: {cfg.probe.cv_folds} | sweep configs: {len(sweep)}")
 
     ##########################
     ##          eval        ##
     ##########################
-
+    sel_metric = cfg.probe.selection_metric
     results = []
-    print(f"\n{'layer':>6} | {'accuracy':>10} | {'f1':>10} | {'jaccard':>10}")
-    print("-" * 46)
+    print(
+        f"\n{'layer':>5} | {'accuracy (mean±std)':>22} | "
+        f"{'f1 (mean±std)':>22} | {'jaccard (mean±std)':>22}"
+    )
+    print("-" * 84)
     for layer in range(num_layers):
-        metrics = train_probe(
-            train_feats[:, layer], train_labels,
-            val_feats[:, layer], val_labels,
-            num_classes=cfg.dataset.num_classes,
-            cfg=cfg,
-            device=device,
-        )
-        metrics["layer"] = layer
-        results.append(metrics)
+        layer_x = feats[:, layer]
+        per_fold_best = []  # list of dicts with metrics + chosen lr/wd
+        for f_idx, (tr, va) in enumerate(fold_indices):
+            tr_x, tr_y = layer_x[tr], labels[tr]
+            va_x, va_y = layer_x[va], labels[va]
+
+            best = None
+            for lr, wd in sweep:
+                m = train_probe(
+                    tr_x, tr_y, va_x, va_y,
+                    num_classes=cfg.dataset.num_classes,
+                    cfg=cfg, device=device,
+                    lr=float(lr), weight_decay=float(wd),
+                )
+                if best is None or m[sel_metric] > best[sel_metric]:
+                    best = {**m, "lr": float(lr), "weight_decay": float(wd)}
+            per_fold_best.append(best)
+
+        accs = np.array([b["accuracy"] for b in per_fold_best])
+        f1s = np.array([b["f1"] for b in per_fold_best])
+        jacs = np.array([b["jaccard"] for b in per_fold_best])
+        std_kw = dict(ddof=1) if len(per_fold_best) > 1 else dict(ddof=0)
+
+        row = {
+            "layer": layer,
+            "accuracy_mean": float(accs.mean()),
+            "accuracy_std": float(accs.std(**std_kw)),
+            "f1_mean": float(f1s.mean()),
+            "f1_std": float(f1s.std(**std_kw)),
+            "jaccard_mean": float(jacs.mean()),
+            "jaccard_std": float(jacs.std(**std_kw)),
+            "best_lr_per_fold": ";".join(f"{b['lr']:g}" for b in per_fold_best),
+            "best_wd_per_fold": ";".join(f"{b['weight_decay']:g}" for b in per_fold_best),
+        }
+        results.append(row)
         print(
-            f"{layer:>6} | {metrics['accuracy']:>10.4f} | "
-            f"{metrics['f1']:>10.4f} | {metrics['jaccard']:>10.4f}"
+            f"{layer:>5} | "
+            f"{row['accuracy_mean']:>9.4f} ± {row['accuracy_std']:.4f}  | "
+            f"{row['f1_mean']:>9.4f} ± {row['f1_std']:.4f}  | "
+            f"{row['jaccard_mean']:>9.4f} ± {row['jaccard_std']:.4f}"
         )
 
     ##########################
     ##   logging and dump   ##
     ##########################
-
-    fieldnames = ["layer", "accuracy", "f1", "jaccard"]
+    fieldnames = [
+        "layer",
+        "accuracy_mean", "accuracy_std",
+        "f1_mean", "f1_std",
+        "jaccard_mean", "jaccard_std",
+        "best_lr_per_fold", "best_wd_per_fold",
+    ]
     csv_path = Path(cfg.results_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with open(csv_path, "w", newline="") as f:
@@ -221,13 +274,16 @@ def run(cfg):
 
     if cfg.wandb.enabled:
         import wandb
-        run = wandb.init(**cfg.wandb.config)
+        wandb.init(**cfg.wandb.config)
         for r in results:
             wandb.log(
                 {
-                    "probe/accuracy": r["accuracy"],
-                    "probe/f1": r["f1"],
-                    "probe/jaccard": r["jaccard"],
+                    "probe/accuracy_mean": r["accuracy_mean"],
+                    "probe/accuracy_std": r["accuracy_std"],
+                    "probe/f1_mean": r["f1_mean"],
+                    "probe/f1_std": r["f1_std"],
+                    "probe/jaccard_mean": r["jaccard_mean"],
+                    "probe/jaccard_std": r["jaccard_std"],
                 },
                 step=r["layer"],
             )

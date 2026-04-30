@@ -1,15 +1,14 @@
 defaults:
   - _self_
 
-# Path to a GSViT state_dict (saved via torch.save(autoencoder.state_dict(), ...)).
-# Only the encoder (`evit.*`) keys are loaded; decoder weights are ignored.
-state_dict_path: /home/u941663/thesis/GSViT/evit_train2/saved_network9_17.pkl
+ckpt_path: /home/u941663/thesis/GSViT/evit_train2/saved_network9_17.pkl # path to pretrained GSViT weights
 
 dataset:
   module: dataset_cholec80:Cholec80Dataset
   kwargs:
     frames_root: /home/u941663/thesis/data/cholec80/frames
     phase_root: /home/u941663/thesis/data/cholec80/phase_annotations
+    split: all
     train_ratio: 0.6
     img_size: 224
   num_classes: 7
@@ -28,12 +27,14 @@ probe:
   hidden_dim: null    # mlp only; defaults to 2 * in_dim if null
   dropout: 0.0        # mlp only
   epochs: 20
-  lr: 1.0e-3
-  weight_decay: 1.0e-4
   inner_batch_size: 4096
+  lr_grid: [1.0e-4, 3.0e-4, 1.0e-3, 3.0e-3, 5.0e-3]
+  weight_decay_grid: [0.01, 0.1, 0.4, 0.8]
+  cv_folds: 5
+  selection_metric: accuracy   # accuracy | f1 | jaccard
 
-feature_cache: null  # e.g. ./cache/cholec80_features.pt
-results_path: probe_results_cholec80.csv
+feature_cache: null  # e.g. ./cache/gsvit_cholec80_features.pt
+results_path: probe_results_gsvit_cholec80.csv
 
 wandb:
   enabled: True

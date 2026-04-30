@@ -1,45 +1,30 @@
-"""Layer-wise probing for a pretrained GSViT (EfficientViT) encoder.
-
-Loads a pretrained GSViT encoder (state_dict saved by `pretrain_model.py`),
-freezes it, extracts globally average-pooled features after every encoder
-sub-module for a labeled dataset, then trains a probe (linear or MLP,
-controlled by `probe.type`) per layer and reports Accuracy, F1 (macro),
-and Jaccard index (macro).
-
-Layers probed:
-    - patch_embed (the conv stem)
-    - every top-level child of blocks1 / blocks2 / blocks3 (each
-      EfficientViTBlock or downsample / patch-merging step)
-
-GSViT was pretrained on cv2-loaded BGR frames in [0, 1] (no ImageNet
-normalization). The reused Cholec80 dataset returns ImageNet-normalized
-RGB tensors, so we undo that normalization and flip RGB->BGR before
-feeding the encoder.
+"""Layer-wise probing for the pretrained GSViT (EfficientViT-M5) encoder.
 
 Run with:
-    python probe.py --config-name cholec80 state_dict_path=/path/to/state_dict.pkl
+    python probe.py --config-name cholec80 ckpt_path=/path/to/GSViT.pkl
 """
 
 import csv
 import importlib
+import itertools
 import sys
 from pathlib import Path
 
 import hydra
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, f1_score, jaccard_score
+from sklearn.model_selection import GroupKFold
 from torch.utils.data import DataLoader
 
-# Make the project's dataset modules importable (they live in ../le-wm/).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "le-wm"))
+# Reuse Cholec80 dataset module from le-wm without copying it.
+_LEWM = (Path(__file__).resolve().parent.parent / "le-wm").as_posix()
+if _LEWM not in sys.path:
+    sys.path.insert(0, _LEWM)
 
-from EfficientViT.classification.model.build import EfficientViT_M0
-
-# ImageNet normalization stats used by the cholec80 dataset transform.
-_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-_IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+from load_gsvit import EfficientViT as GSViTWrapper  # noqa: E402
 
 
 def load_dataset(spec, kwargs):
@@ -51,7 +36,6 @@ def load_dataset(spec, kwargs):
 
 
 def build_probe(in_dim, num_classes, cfg):
-    """Linear or MLP head, selected by cfg.probe.type."""
     t = cfg.probe.type
     if t == "linear":
         return nn.Linear(in_dim, num_classes)
@@ -64,117 +48,92 @@ def build_probe(in_dim, num_classes, cfg):
             nn.Dropout(d),
             nn.Linear(h, num_classes),
         )
-    raise ValueError(f"Unknown probe.type: {t!r} (expected 'linear' or 'mlp')")
+    raise ValueError(f"Unknown probe.type: {t!r}")
 
 
-def load_encoder(state_dict_path, device):
-    """Build an EfficientViT_M0 encoder and load weights from a saved state_dict.
+def bgr_flip(images):
+    """In-place BGR<->RGB swap on (B, C, H, W) tensors. Matches load_gsvit.process_inputs."""
+    out = images.clone()
+    out[:, 0], out[:, 2] = images[:, 2], images[:, 0]
+    return out
 
-    The training script saves `autoencoder.state_dict()` for an
-    EfficientViTAutoEncoder, where the encoder lives under the `evit.*` prefix
-    (the trailing classification head was already stripped at construction).
-    We rebuild that same Sequential(patch_embed, blocks1, blocks2, blocks3)
-    and load only the encoder portion.
+
+def collect_hook_targets(evit_seq):
+    """Return ordered list of submodules to hook for per-layer features.
+
+    `evit_seq` is the Sequential [patch_embed, blocks1, blocks2, blocks3].
+    Layer 0 is the patch_embed output; subsequent layers are the direct
+    children of each blocksN (mix of EfficientViTBlock and downsample modules).
     """
-    state = torch.load(state_dict_path, map_location="cpu")
-    if isinstance(state, dict) and "state_dict" in state:
-        state = state["state_dict"]
-
-    # Strip a possible nn.DataParallel wrapper prefix.
-    state = {
-        (k[len("module."):] if k.startswith("module.") else k): v
-        for k, v in state.items()
-    }
-    # Keep only the encoder weights.
-    encoder_state = {
-        k[len("evit."):]: v for k, v in state.items() if k.startswith("evit.")
-    }
-    if not encoder_state:
-        raise RuntimeError(
-            f"No 'evit.*' keys found in {state_dict_path}; "
-            "expected an EfficientViTAutoEncoder state_dict."
-        )
-
-    base = EfficientViT_M0(pretrained=False)
-    encoder = nn.Sequential(*list(base.children())[:-1])
-    encoder.load_state_dict(encoder_state)
-    return encoder.to(device)
-
-
-def collect_layer_modules(encoder):
-    """List (name, module) pairs for every sub-module we want to probe."""
-    layers = [("patch_embed", encoder[0])]
-    for stage_idx in range(1, 4):
-        stage = encoder[stage_idx]
+    targets = [("patch_embed", evit_seq[0])]
+    for stage_idx in (1, 2, 3):
+        stage = evit_seq[stage_idx]
         for child_idx, child in enumerate(stage):
-            layers.append((f"stage{stage_idx}.{child_idx}", child))
-    return layers
+            targets.append((f"blocks{stage_idx}.{child_idx}", child))
+    return targets
 
 
 @torch.no_grad()
-def extract_features(encoder, loader, layer_modules, device):
-    """Run the encoder once over the loader and stack per-layer GAP features.
+def extract_features(evit_seq, hook_targets, loader, device):
+    """Run the encoder once over the loader and collect per-layer pooled features.
 
-    Returns:
-        feats: list of (N, C_layer) tensors, one per probed layer (CPU)
-        labels: (N,) long tensor
+    Returns a list of length L; entry ℓ is a (N, D_ℓ) tensor on CPU.
+    Per-layer feature dim differs because EfficientViT widens with depth, so we
+    keep a list-of-tensors instead of a stacked (N, L, D) tensor.
+
+    Pooling: mean over (H', W'); if pixels arrive 5D, also mean over T.
     """
-    encoder.eval()
+    evit_seq.eval()
 
-    captured = {}
+    feat_buffer = {}
     handles = []
+    for i, (_, mod) in enumerate(hook_targets):
+        def make_hook(idx):
+            def _hook(_m, _inp, out):
+                feat_buffer[idx] = out
+            return _hook
+        handles.append(mod.register_forward_hook(make_hook(i)))
 
-    def make_hook(name):
-        def hook(_mod, _inp, out):
-            captured[name] = F.adaptive_avg_pool2d(out, 1).flatten(1).cpu()
-        return hook
-
-    for name, mod in layer_modules:
-        handles.append(mod.register_forward_hook(make_hook(name)))
-
-    per_layer = {name: [] for name, _ in layer_modules}
+    L = len(hook_targets)
+    per_layer = [[] for _ in range(L)]
     all_labels = []
-
-    mean = _IMAGENET_MEAN.to(device)
-    std = _IMAGENET_STD.to(device)
 
     try:
         for batch in loader:
             pixels = batch["pixels"].to(device).float()
             labels = batch["label"]
 
-            # If user provides (B, T, C, H, W), flatten T into B.
-            if pixels.dim() == 5:
+            was_5d = pixels.dim() == 5
+            if was_5d:
                 B, T = pixels.shape[:2]
                 pixels = pixels.reshape(B * T, *pixels.shape[2:])
-                labels = labels.unsqueeze(1).expand(-1, T).reshape(-1)
 
-            # Undo ImageNet normalization, then RGB -> BGR (GSViT training input).
-            pixels = pixels * std + mean
-            pixels = pixels[:, [2, 1, 0]]
+            pixels = bgr_flip(pixels)
+            feat_buffer.clear()
+            evit_seq(pixels)
 
-            captured.clear()
-            _ = encoder(pixels)
+            for ell in range(L):
+                fmap = feat_buffer[ell]            # (B', C_ℓ, H', W')
+                pooled = fmap.mean(dim=(2, 3))     # (B', C_ℓ)
+                if was_5d:
+                    pooled = pooled.reshape(B, T, -1).mean(dim=1)  # (B, C_ℓ)
+                per_layer[ell].append(pooled.cpu())
 
-            for name, _ in layer_modules:
-                per_layer[name].append(captured[name])
             all_labels.append(labels.cpu().long())
     finally:
         for h in handles:
             h.remove()
 
-    feats = [torch.cat(per_layer[name], dim=0) for name, _ in layer_modules]
+    feats_list = [torch.cat(x, dim=0) for x in per_layer]
     labels = torch.cat(all_labels, dim=0)
-    return feats, labels
+    return feats_list, labels
 
 
-def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device):
-    """Train a single probe (linear or MLP) and return val metrics dict."""
+def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device,
+                lr, weight_decay):
     in_dim = train_x.size(1)
     probe = build_probe(in_dim, num_classes, cfg).to(device)
-    opt = torch.optim.AdamW(
-        probe.parameters(), lr=cfg.probe.lr, weight_decay=cfg.probe.weight_decay
-    )
+    opt = torch.optim.AdamW(probe.parameters(), lr=lr, weight_decay=weight_decay)
 
     train_x = train_x.to(device)
     train_y = train_y.to(device)
@@ -208,32 +167,40 @@ def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device):
     }
 
 
+def load_gsvit_encoder(ckpt_path, device):
+    """Load GSViT.pkl into the EfficientViT wrapper and return the head-stripped Sequential."""
+    wrapper = GSViTWrapper(in_size=1)
+    state = torch.load(ckpt_path, map_location=device)
+    wrapper.load_state_dict(state)
+    evit_seq = wrapper.evit.to(device)
+    evit_seq.eval()
+    for p in evit_seq.parameters():
+        p.requires_grad_(False)
+    return evit_seq
+
+
 @hydra.main(version_base=None, config_path="./config/eval", config_name="cholec80")
 def run(cfg):
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
 
-    print(f"Loading state_dict: {cfg.state_dict_path}")
-    encoder = load_encoder(cfg.state_dict_path, device)
-    encoder.eval()
-    for p in encoder.parameters():
-        p.requires_grad_(False)
-
-    layer_modules = collect_layer_modules(encoder)
-    layer_names = [n for n, _ in layer_modules]
-    print(f"Probing {len(layer_names)} layers")
+    print(f"Loading checkpoint: {cfg.ckpt_path}")
+    evit_seq = load_gsvit_encoder(cfg.ckpt_path, device)
+    hook_targets = collect_hook_targets(evit_seq)
+    print(f"Hookable layers: {len(hook_targets)}")
+    for i, (name, _) in enumerate(hook_targets):
+        print(f"  layer {i}: {name}")
 
     ##########################
     ##   loading dataset    ##
     ##########################
     print(f"Loading dataset: {cfg.dataset.module}")
     ds_kwargs = {**cfg.dataset.kwargs, "seed": cfg.seed}
-    train_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "train"})
-    val_set = load_dataset(cfg.dataset.module, {**ds_kwargs, "split": "val"})
-    print(f"Dataset: {len(train_set)} train / {len(val_set)} val")
+    dataset = load_dataset(cfg.dataset.module, ds_kwargs)
+    groups = np.asarray(dataset.groups)
+    print(f"Dataset: {len(dataset)} samples, {len(set(groups.tolist()))} groups")
 
-    train_loader = DataLoader(train_set, shuffle=False, **cfg.loader)
-    val_loader = DataLoader(val_set, shuffle=False, **cfg.loader)
+    loader = DataLoader(dataset, shuffle=False, **cfg.loader)
 
     ##########################
     ##     loading cached   ##
@@ -242,60 +209,104 @@ def run(cfg):
     if cache_path and cache_path.exists():
         print(f"Loading cached features: {cache_path}")
         cache = torch.load(cache_path)
-        train_feats, train_labels = cache["train_feats"], cache["train_labels"]
-        val_feats, val_labels = cache["val_feats"], cache["val_labels"]
-        layer_names = cache.get("layer_names", layer_names)
+        feats_list = cache["feats_list"]
+        labels = cache["labels"]
+        cached_groups = np.asarray(cache["groups"])
+        assert len(cached_groups) == len(groups), "cache size mismatch"
+        groups = cached_groups
     else:
-        train_feats, train_labels = extract_features(
-            encoder, train_loader, layer_modules, device
-        )
-        val_feats, val_labels = extract_features(
-            encoder, val_loader, layer_modules, device
-        )
+        feats_list, labels = extract_features(evit_seq, hook_targets, loader, device)
         if cache_path:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(
                 {
-                    "train_feats": train_feats,
-                    "train_labels": train_labels,
-                    "val_feats": val_feats,
-                    "val_labels": val_labels,
-                    "layer_names": layer_names,
+                    "feats_list": feats_list,
+                    "labels": labels,
+                    "groups": groups.tolist(),
                 },
                 cache_path,
             )
             print(f"Cached features to: {cache_path}")
 
-    num_layers = len(train_feats)
-    print(f"Features: {num_layers} layers")
+    num_layers = len(feats_list)
+    print(f"Per-layer feature dims: {[t.size(1) for t in feats_list]}")
+
+    ##########################
+    ##  fold + sweep grid   ##
+    ##########################
+    n = labels.size(0)
+    gkf = GroupKFold(n_splits=cfg.probe.cv_folds)
+    fold_indices = list(gkf.split(np.arange(n), groups=groups))
+    for f_idx, (tr, va) in enumerate(fold_indices):
+        assert set(groups[tr]).isdisjoint(set(groups[va])), \
+            f"group leakage in fold {f_idx}"
+
+    sweep = list(itertools.product(cfg.probe.lr_grid, cfg.probe.weight_decay_grid))
+    print(f"CV folds: {cfg.probe.cv_folds} | sweep configs: {len(sweep)}")
 
     ##########################
     ##          eval        ##
     ##########################
-
+    sel_metric = cfg.probe.selection_metric
     results = []
-    print(f"\n{'layer':>6} | {'accuracy':>10} | {'f1':>10} | {'jaccard':>10}")
-    print("-" * 46)
+    print(
+        f"\n{'layer':>5} | {'accuracy (mean±std)':>22} | "
+        f"{'f1 (mean±std)':>22} | {'jaccard (mean±std)':>22}"
+    )
+    print("-" * 84)
     for layer in range(num_layers):
-        metrics = train_probe(
-            train_feats[layer], train_labels,
-            val_feats[layer], val_labels,
-            num_classes=cfg.dataset.num_classes,
-            cfg=cfg,
-            device=device,
-        )
-        metrics["layer"] = layer
-        results.append(metrics)
+        layer_x = feats_list[layer]
+        per_fold_best = []
+        for f_idx, (tr, va) in enumerate(fold_indices):
+            tr_x, tr_y = layer_x[tr], labels[tr]
+            va_x, va_y = layer_x[va], labels[va]
+
+            best = None
+            for lr, wd in sweep:
+                m = train_probe(
+                    tr_x, tr_y, va_x, va_y,
+                    num_classes=cfg.dataset.num_classes,
+                    cfg=cfg, device=device,
+                    lr=float(lr), weight_decay=float(wd),
+                )
+                if best is None or m[sel_metric] > best[sel_metric]:
+                    best = {**m, "lr": float(lr), "weight_decay": float(wd)}
+            per_fold_best.append(best)
+
+        accs = np.array([b["accuracy"] for b in per_fold_best])
+        f1s = np.array([b["f1"] for b in per_fold_best])
+        jacs = np.array([b["jaccard"] for b in per_fold_best])
+        std_kw = dict(ddof=1) if len(per_fold_best) > 1 else dict(ddof=0)
+
+        row = {
+            "layer": layer,
+            "accuracy_mean": float(accs.mean()),
+            "accuracy_std": float(accs.std(**std_kw)),
+            "f1_mean": float(f1s.mean()),
+            "f1_std": float(f1s.std(**std_kw)),
+            "jaccard_mean": float(jacs.mean()),
+            "jaccard_std": float(jacs.std(**std_kw)),
+            "best_lr_per_fold": ";".join(f"{b['lr']:g}" for b in per_fold_best),
+            "best_wd_per_fold": ";".join(f"{b['weight_decay']:g}" for b in per_fold_best),
+        }
+        results.append(row)
         print(
-            f"{layer:>6} | {metrics['accuracy']:>10.4f} | "
-            f"{metrics['f1']:>10.4f} | {metrics['jaccard']:>10.4f}"
+            f"{layer:>5} | "
+            f"{row['accuracy_mean']:>9.4f} ± {row['accuracy_std']:.4f}  | "
+            f"{row['f1_mean']:>9.4f} ± {row['f1_std']:.4f}  | "
+            f"{row['jaccard_mean']:>9.4f} ± {row['jaccard_std']:.4f}"
         )
 
     ##########################
     ##   logging and dump   ##
     ##########################
-
-    fieldnames = ["layer", "accuracy", "f1", "jaccard"]
+    fieldnames = [
+        "layer",
+        "accuracy_mean", "accuracy_std",
+        "f1_mean", "f1_std",
+        "jaccard_mean", "jaccard_std",
+        "best_lr_per_fold", "best_wd_per_fold",
+    ]
     csv_path = Path(cfg.results_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with open(csv_path, "w", newline="") as f:
@@ -307,13 +318,16 @@ def run(cfg):
 
     if cfg.wandb.enabled:
         import wandb
-        run = wandb.init(**cfg.wandb.config)
+        wandb.init(**cfg.wandb.config)
         for r in results:
             wandb.log(
                 {
-                    "probe/accuracy": r["accuracy"],
-                    "probe/f1": r["f1"],
-                    "probe/jaccard": r["jaccard"],
+                    "probe/accuracy_mean": r["accuracy_mean"],
+                    "probe/accuracy_std": r["accuracy_std"],
+                    "probe/f1_mean": r["f1_mean"],
+                    "probe/f1_std": r["f1_std"],
+                    "probe/jaccard_mean": r["jaccard_mean"],
+                    "probe/jaccard_std": r["jaccard_std"],
                 },
                 step=r["layer"],
             )
@@ -328,3 +342,4 @@ def run(cfg):
 
 if __name__ == "__main__":
     run()
+
