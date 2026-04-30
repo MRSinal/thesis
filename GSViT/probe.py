@@ -1,16 +1,28 @@
-"""Layer-wise probing for a pretrained JEPA encoder.
+"""Layer-wise probing for a pretrained GSViT (EfficientViT) encoder.
 
-Loads a pretrained JEPA checkpoint, freezes the encoder, extracts CLS token
-features from every transformer layer for a labeled dataset, then trains a
-probe (linear or MLP, controlled by `probe.type`) per layer and reports
-Accuracy, F1 (macro), and Jaccard index (macro).
+Loads a pretrained GSViT encoder (state_dict saved by `pretrain_model.py`),
+freezes it, extracts globally average-pooled features after every encoder
+sub-module for a labeled dataset, then trains a probe (linear or MLP,
+controlled by `probe.type`) per layer and reports Accuracy, F1 (macro),
+and Jaccard index (macro).
+
+Layers probed:
+    - patch_embed (the conv stem)
+    - every top-level child of blocks1 / blocks2 / blocks3 (each
+      EfficientViTBlock or downsample / patch-merging step)
+
+GSViT was pretrained on cv2-loaded BGR frames in [0, 1] (no ImageNet
+normalization). The reused Cholec80 dataset returns ImageNet-normalized
+RGB tensors, so we undo that normalization and flip RGB->BGR before
+feeding the encoder.
 
 Run with:
-    python probe.py --config-name cholec80 ckpt_path=/path/to/ckpt
+    python probe.py --config-name cholec80 state_dict_path=/path/to/state_dict.pkl
 """
 
 import csv
 import importlib
+import sys
 from pathlib import Path
 
 import hydra
@@ -19,6 +31,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import accuracy_score, f1_score, jaccard_score
 from torch.utils.data import DataLoader
+
+# Make the project's dataset modules importable (they live in ../le-wm/).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "le-wm"))
+
+from EfficientViT.classification.model.build import EfficientViT_M0
+
+# ImageNet normalization stats used by the cholec80 dataset transform.
+_IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+_IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
 
 
 def load_dataset(spec, kwargs):
@@ -46,41 +67,103 @@ def build_probe(in_dim, num_classes, cfg):
     raise ValueError(f"Unknown probe.type: {t!r} (expected 'linear' or 'mlp')")
 
 
+def load_encoder(state_dict_path, device):
+    """Build an EfficientViT_M0 encoder and load weights from a saved state_dict.
+
+    The training script saves `autoencoder.state_dict()` for an
+    EfficientViTAutoEncoder, where the encoder lives under the `evit.*` prefix
+    (the trailing classification head was already stripped at construction).
+    We rebuild that same Sequential(patch_embed, blocks1, blocks2, blocks3)
+    and load only the encoder portion.
+    """
+    state = torch.load(state_dict_path, map_location="cpu")
+    if isinstance(state, dict) and "state_dict" in state:
+        state = state["state_dict"]
+
+    # Strip a possible nn.DataParallel wrapper prefix.
+    state = {
+        (k[len("module."):] if k.startswith("module.") else k): v
+        for k, v in state.items()
+    }
+    # Keep only the encoder weights.
+    encoder_state = {
+        k[len("evit."):]: v for k, v in state.items() if k.startswith("evit.")
+    }
+    if not encoder_state:
+        raise RuntimeError(
+            f"No 'evit.*' keys found in {state_dict_path}; "
+            "expected an EfficientViTAutoEncoder state_dict."
+        )
+
+    base = EfficientViT_M0(pretrained=False)
+    encoder = nn.Sequential(*list(base.children())[:-1])
+    encoder.load_state_dict(encoder_state)
+    return encoder.to(device)
+
+
+def collect_layer_modules(encoder):
+    """List (name, module) pairs for every sub-module we want to probe."""
+    layers = [("patch_embed", encoder[0])]
+    for stage_idx in range(1, 4):
+        stage = encoder[stage_idx]
+        for child_idx, child in enumerate(stage):
+            layers.append((f"stage{stage_idx}.{child_idx}", child))
+    return layers
+
+
 @torch.no_grad()
-def extract_features(encoder, loader, device):
-    """Run the encoder once over the loader and stack per-layer CLS features.
+def extract_features(encoder, loader, layer_modules, device):
+    """Run the encoder once over the loader and stack per-layer GAP features.
 
     Returns:
-        feats: (N, L, D) tensor (L = num_hidden_layers + 1)
+        feats: list of (N, C_layer) tensors, one per probed layer (CPU)
         labels: (N,) long tensor
     """
     encoder.eval()
-    all_feats = []
+
+    captured = {}
+    handles = []
+
+    def make_hook(name):
+        def hook(_mod, _inp, out):
+            captured[name] = F.adaptive_avg_pool2d(out, 1).flatten(1).cpu()
+        return hook
+
+    for name, mod in layer_modules:
+        handles.append(mod.register_forward_hook(make_hook(name)))
+
+    per_layer = {name: [] for name, _ in layer_modules}
     all_labels = []
 
-    for batch in loader:
-        pixels = batch["pixels"].to(device).float()
-        labels = batch["label"]
+    mean = _IMAGENET_MEAN.to(device)
+    std = _IMAGENET_STD.to(device)
 
-        # ViT expects (B, C, H, W). If user provides (B, T, C, H, W), flatten T into B.
-        if pixels.dim() == 5:
-            B, T = pixels.shape[:2]
-            pixels = pixels.reshape(B * T, *pixels.shape[2:])
-            labels = labels.unsqueeze(1).expand(-1, T).reshape(-1)
+    try:
+        for batch in loader:
+            pixels = batch["pixels"].to(device).float()
+            labels = batch["label"]
 
-        output = encoder(
-            pixels,
-            interpolate_pos_encoding=True,
-            output_hidden_states=True,
-        )
-        # TODO: Do we do this in ./jepa.py?
-        cls_per_layer = torch.stack(
-            [h[:, 0].cpu() for h in output.hidden_states], dim=1
-        )
-        all_feats.append(cls_per_layer)
-        all_labels.append(labels.cpu().long())
+            # If user provides (B, T, C, H, W), flatten T into B.
+            if pixels.dim() == 5:
+                B, T = pixels.shape[:2]
+                pixels = pixels.reshape(B * T, *pixels.shape[2:])
+                labels = labels.unsqueeze(1).expand(-1, T).reshape(-1)
 
-    feats = torch.cat(all_feats, dim=0)
+            # Undo ImageNet normalization, then RGB -> BGR (GSViT training input).
+            pixels = pixels * std + mean
+            pixels = pixels[:, [2, 1, 0]]
+
+            captured.clear()
+            _ = encoder(pixels)
+
+            for name, _ in layer_modules:
+                per_layer[name].append(captured[name])
+            all_labels.append(labels.cpu().long())
+    finally:
+        for h in handles:
+            h.remove()
+
+    feats = [torch.cat(per_layer[name], dim=0) for name, _ in layer_modules]
     labels = torch.cat(all_labels, dim=0)
     return feats, labels
 
@@ -130,19 +213,16 @@ def run(cfg):
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
 
-    print(f"Loading checkpoint: {cfg.ckpt_path}")
-    model = torch.load(cfg.ckpt_path, map_location=device, weights_only=False)
-    encoder = model.encoder.to(device)
+    print(f"Loading state_dict: {cfg.state_dict_path}")
+    encoder = load_encoder(cfg.state_dict_path, device)
     encoder.eval()
     for p in encoder.parameters():
         p.requires_grad_(False)
 
-    # HF populates _CAN_RECORD_REGISTRY in PreTrainedModel.__init__, which
-    # torch.load skips without this, output_hidden_states=True is ignored.
-    from transformers.utils.output_capturing import _CAN_RECORD_REGISTRY
-    _CAN_RECORD_REGISTRY[str(encoder.__class__)] = encoder._can_record_outputs
+    layer_modules = collect_layer_modules(encoder)
+    layer_names = [n for n, _ in layer_modules]
+    print(f"Probing {len(layer_names)} layers")
 
-    
     ##########################
     ##   loading dataset    ##
     ##########################
@@ -164,9 +244,14 @@ def run(cfg):
         cache = torch.load(cache_path)
         train_feats, train_labels = cache["train_feats"], cache["train_labels"]
         val_feats, val_labels = cache["val_feats"], cache["val_labels"]
+        layer_names = cache.get("layer_names", layer_names)
     else:
-        train_feats, train_labels = extract_features(encoder, train_loader, device)
-        val_feats, val_labels = extract_features(encoder, val_loader, device)
+        train_feats, train_labels = extract_features(
+            encoder, train_loader, layer_modules, device
+        )
+        val_feats, val_labels = extract_features(
+            encoder, val_loader, layer_modules, device
+        )
         if cache_path:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(
@@ -175,13 +260,14 @@ def run(cfg):
                     "train_labels": train_labels,
                     "val_feats": val_feats,
                     "val_labels": val_labels,
+                    "layer_names": layer_names,
                 },
                 cache_path,
             )
             print(f"Cached features to: {cache_path}")
 
-    num_layers = train_feats.size(1)
-    print(f"Features: {tuple(train_feats.shape)} (layers={num_layers})")
+    num_layers = len(train_feats)
+    print(f"Features: {num_layers} layers")
 
     ##########################
     ##          eval        ##
@@ -192,8 +278,8 @@ def run(cfg):
     print("-" * 46)
     for layer in range(num_layers):
         metrics = train_probe(
-            train_feats[:, layer], train_labels,
-            val_feats[:, layer], val_labels,
+            train_feats[layer], train_labels,
+            val_feats[layer], val_labels,
             num_classes=cfg.dataset.num_classes,
             cfg=cfg,
             device=device,

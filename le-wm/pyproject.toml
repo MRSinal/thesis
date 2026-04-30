@@ -14,4 +14,8 @@ dependencies = [
     "stable-worldmodel>=0.0.6",
     "torch>=2.5.1",
     "torchvision>=0.20.1",
+    "transformers",
 ]
+
+[tool.uv.sources]
+transformers = { git = "https://github.com/huggingface/transformers" }

@@ -1,7 +1,9 @@
 defaults:
   - _self_
 
-ckpt_path: /home/u941663/thesis/le-wm/checkpoints/lewm_surgical_epoch_9_object.ckpt # path to pretrained JEPA *_object.ckpt
+# Path to a GSViT state_dict (saved via torch.save(autoencoder.state_dict(), ...)).
+# Only the encoder (`evit.*`) keys are loaded; decoder weights are ignored.
+state_dict_path: /home/u941663/thesis/GSViT/evit_train2/saved_network9_17.pkl
 
 dataset:
   module: dataset_cholec80:Cholec80Dataset
@@ -36,6 +38,6 @@ results_path: probe_results_cholec80.csv
 wandb:
   enabled: True
   config:
-    entity: mrsinal-tilburg-university 
-    project: jepa
-    name: probe_cholec80
+    entity: mrsinal-tilburg-university
+    project: GSViT
+    name: probe_gsvit_cholec80

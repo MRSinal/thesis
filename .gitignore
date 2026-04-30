@@ -225,4 +225,5 @@ le-wm/wandb/*
 
 GSViT/evit_train2/*
 GSViT/wandb/*
+GSViT/profiler_logs/*
 

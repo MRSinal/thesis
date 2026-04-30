@@ -1,0 +1,32 @@
+state_dict_path: /home/u941663/thesis/GSViT/evit_train2/saved_network9_17.pkl
+dataset:
+  module: dataset_cholec80:Cholec80Dataset
+  kwargs:
+    frames_root: /home/u941663/thesis/data/cholec80/frames
+    phase_root: /home/u941663/thesis/data/cholec80/phase_annotations
+    train_ratio: 0.6
+    img_size: 224
+  num_classes: 7
+img_size: 224
+seed: 3072
+device: cuda
+loader:
+  batch_size: 256
+  num_workers: 4
+  pin_memory: true
+probe:
+  type: linear
+  hidden_dim: null
+  dropout: 0.0
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0001
+  inner_batch_size: 4096
+feature_cache: null
+results_path: probe_results_cholec80.csv
+wandb:
+  enabled: true
+  config:
+    entity: mrsinal-tilburg-university-org
+    project: GSViT
+    name: probe_gsvit_cholec80

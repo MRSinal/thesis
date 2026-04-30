@@ -81,8 +81,8 @@ class Cholec80Dataset(ConcatDataset):
 
     def __init__(
         self,
-        frames_root="/home/u941663/thesis/data/cholec80/frames",
-        phase_root="/home/u941663/thesis/data/cholec80/phase_annotations",
+        frames_root="~/thesis/data/cholec80/frames",
+        phase_root="~/thesis/data/cholec80/phase_annotations",
         split="all",
         train_ratio=0.6,
         img_size=224,
