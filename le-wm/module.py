@@ -278,7 +278,7 @@ class ARPredictor(nn.Module):
         """
         x: (B, T, d)
         
-        c: (B, T, act_dim) TODO: Adjust as act_dim is not needed
+        c: (B, T)
         """
         # Number of tokens
         T = x.size(1)

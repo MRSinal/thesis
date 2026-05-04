@@ -33,8 +33,15 @@ probe:
   cv_folds: 5
   selection_metric: accuracy   # accuracy | f1 | jaccard
 
-feature_cache: null  # e.g. ./cache/cholec80_features.pt
+feature_cache: ./cache/cholec80_features.pt # e.g. ./cache/cholec80_features.pt
 results_path: probe_results_cholec80.csv
+
+umap:
+  figures_dir: ./figures/umap_lejepa_cholec80
+  max_points: 20000      # random subsample size; UMAP scales poorly past ~20k
+  n_neighbors: 30
+  min_dist: 0.1
+  metric: euclidean
 
 wandb:
   enabled: True

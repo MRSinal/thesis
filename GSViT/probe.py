@@ -24,7 +24,7 @@ _LEWM = (Path(__file__).resolve().parent.parent / "le-wm").as_posix()
 if _LEWM not in sys.path:
     sys.path.insert(0, _LEWM)
 
-from load_gsvit import EfficientViT as GSViTWrapper  # noqa: E402
+from EfficientViT.classification.model import build as evit_build  # noqa: E402
 
 
 def load_dataset(spec, kwargs):
@@ -167,11 +167,41 @@ def train_probe(train_x, train_y, val_x, val_y, num_classes, cfg, device,
     }
 
 
-def load_gsvit_encoder(ckpt_path, device):
-    """Load GSViT.pkl into the EfficientViT wrapper and return the head-stripped Sequential."""
-    wrapper = GSViTWrapper(in_size=1)
-    state = torch.load(ckpt_path, map_location=device)
-    wrapper.load_state_dict(state)
+class _EncoderOnly(nn.Module):
+    """Minimal wrapper exposing self.evit so checkpoint keys like 'evit.0.…' load directly."""
+    def __init__(self, variant):
+        super().__init__()
+        builder = getattr(evit_build, f"EfficientViT_{variant.upper()}")
+        full = builder(pretrained=False)  # we'll overwrite from the user ckpt
+        self.evit = nn.Sequential(*list(full.children())[:-1])  # strip cls head
+
+
+def load_gsvit_encoder(ckpt_path, device, variant):
+    """Load a GSViT checkpoint and return the head-stripped Sequential.
+
+    Handles checkpoints saved from EfficientViTAutoEncoder (which contain both
+    `evit.*` encoder keys and unused `decoder.*` keys), optionally wrapped in
+    DataParallel (adds a `module.` prefix to every key).
+    """
+    state = torch.load(ckpt_path, map_location=device, weights_only=True)
+    state = {(k[len("module."):] if k.startswith("module.") else k): v
+             for k, v in state.items()}
+    enc_state = {k: v for k, v in state.items() if k.startswith("evit.")}
+    if not enc_state:
+        raise RuntimeError(
+            f"No 'evit.*' keys found in checkpoint {ckpt_path}; "
+            f"available prefixes: {sorted({k.split('.', 1)[0] for k in state})}"
+        )
+
+    wrapper = _EncoderOnly(variant)
+    missing, unexpected = wrapper.load_state_dict(enc_state, strict=False)
+    if missing or unexpected:
+        raise RuntimeError(
+            f"Checkpoint/architecture mismatch for variant={variant!r}.\n"
+            f"  missing in ckpt: {missing[:5]}{' ...' if len(missing) > 5 else ''}\n"
+            f"  unexpected in ckpt: {unexpected[:5]}{' ...' if len(unexpected) > 5 else ''}"
+        )
+
     evit_seq = wrapper.evit.to(device)
     evit_seq.eval()
     for p in evit_seq.parameters():
@@ -184,8 +214,8 @@ def run(cfg):
     torch.manual_seed(cfg.seed)
     device = torch.device(cfg.device if torch.cuda.is_available() else "cpu")
 
-    print(f"Loading checkpoint: {cfg.ckpt_path}")
-    evit_seq = load_gsvit_encoder(cfg.ckpt_path, device)
+    print(f"Loading checkpoint: {cfg.ckpt_path} (variant={cfg.model_variant})")
+    evit_seq = load_gsvit_encoder(cfg.ckpt_path, device, cfg.model_variant)
     hook_targets = collect_hook_targets(evit_seq)
     print(f"Hookable layers: {len(hook_targets)}")
     for i, (name, _) in enumerate(hook_targets):

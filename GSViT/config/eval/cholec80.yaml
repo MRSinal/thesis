@@ -2,6 +2,7 @@ defaults:
   - _self_
 
 ckpt_path: /home/u941663/thesis/GSViT/evit_train2/saved_network9_17.pkl # path to pretrained GSViT weights
+model_variant: m0  # EfficientViT variant: m0|m1|m2|m3|m4|m5 (must match the trained checkpoint)
 
 dataset:
   module: dataset_cholec80:Cholec80Dataset
@@ -33,8 +34,15 @@ probe:
   cv_folds: 5
   selection_metric: accuracy   # accuracy | f1 | jaccard
 
-feature_cache: null  # e.g. ./cache/gsvit_cholec80_features.pt
+feature_cache: ./cache/cholec80_features.pt  # e.g. ./cache/gsvit_cholec80_features.pt
 results_path: probe_results_gsvit_cholec80.csv
+
+umap:
+  figures_dir: ./figures/umap_gsvit_cholec80
+  max_points: 20000      # random subsample size; UMAP scales poorly past ~20k
+  n_neighbors: 30
+  min_dist: 0.1
+  metric: euclidean
 
 wandb:
   enabled: True
