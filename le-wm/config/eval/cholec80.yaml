@@ -41,7 +41,7 @@ umap:
   max_points: 20000      # random subsample size; UMAP scales poorly past ~20k
   n_neighbors: 30
   min_dist: 0.1
-  metric: euclidean
+  metric: cosine
 
 wandb:
   enabled: True

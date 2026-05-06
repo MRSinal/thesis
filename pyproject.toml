@@ -6,10 +6,14 @@ dependencies = [
     "ffmpeg-python>=0.2.0",
     "ffprobe-python>=1.0.3",
     "hachoir>=3.3.0",
+    "jinja2>=3.1.6",
+    "kaleido>=1.2.0",
     "matplotlib>=3.10.8",
+    "nbformat>=5.10.4",
     "pandas>=3.0.2",
     "plotly>=6.7.0",
     "transformers>=4.57.6",
+    "wandb>=0.25.1",
 ]
 
 [tool.uv.workspace]
