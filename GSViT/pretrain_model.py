@@ -127,7 +127,6 @@ class EfficientViTAutoEncoder(nn.Module):
         super(EfficientViTAutoEncoder, self).__init__()
         self.predict_change = predict_change
         self.decoder = Decoder(in_size, predict_change)
-        # Using M5, should use the least complex ViT M0
         # NOTE: Its pretrained!
         self.evit = EfficientViT_M0(pretrained='efficientvit_m0')
         # remove the classification head

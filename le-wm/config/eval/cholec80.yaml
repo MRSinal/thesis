@@ -12,13 +12,15 @@ dataset:
     train_ratio: 0.6
     img_size: 224
   num_classes: 7
+  history_size: 3
+  frameskip: 5
 
 img_size: 224
 seed: 3072
 device: cuda
 
 loader:
-  batch_size: 256
+  batch_size: 128
   num_workers: 4
   pin_memory: True
 

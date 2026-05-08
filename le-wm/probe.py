@@ -54,11 +54,13 @@ def build_probe(in_dim, num_classes, cfg):
 def extract_features(encoder, loader, device):
     """Run the encoder once over the loader and stack per-layer pooled features.
 
-    Pooling: mean over patch tokens (excluding CLS) per layer; if pixels arrive
-    as (B, T, C, H, W), also mean over T so each clip yields one feature vector.
+    Pooling: mean over patch tokens (excluding CLS) per layer. For 5D pixels
+    (B, T, C, H, W), the T frames are concatenated along the feature axis
+    (order preserved) so the probe sees the same ordered context window the
+    LeJEPA predictor consumes during training.
 
     Returns:
-        feats: (N, L, D) tensor (L = num_hidden_layers + 1)
+        feats: (N, L, T*D) for 5D pixels, else (N, L, D)
         labels: (N,) long tensor
     """
     encoder.eval()
@@ -86,8 +88,13 @@ def extract_features(encoder, loader, device):
 
         if was_5d:
             L, D = pooled_per_layer.shape[1], pooled_per_layer.shape[2]
-            pooled_per_layer = pooled_per_layer.reshape(B, T, L, D).mean(dim=1)
-        # else: pooled_per_layer is already (B, L, D)
+            # (B, T, L, D) -> (B, L, T*D); concat along feature axis preserves
+            # frame order so the probe can use temporal structure.
+            pooled_per_layer = (
+                pooled_per_layer.reshape(B, T, L, D)
+                .permute(0, 2, 1, 3)
+                .reshape(B, L, T * D)
+            )
 
         all_feats.append(pooled_per_layer)
         all_labels.append(labels.cpu().long())

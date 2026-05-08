@@ -52,9 +52,17 @@ def _build_transform(img_size):
 
 
 class _VideoFrames(Dataset):
-    """All labeled frames from one video."""
+    """All labeled frames from one video.
 
-    def __init__(self, vid_dir: Path, phase_root: Path, transform):
+    With history_size > 1, each item is a window of `history_size` frames at
+    stride `frameskip` ending at the indexed frame. Pixels: (history_size, C,
+    H, W). Label: phase of the *last* frame in the window (current phase given
+    recent history). Items at the very start of a video where the window would
+    underflow are dropped.
+    """
+
+    def __init__(self, vid_dir: Path, phase_root: Path, transform,
+                 history_size=1, frameskip=1):
         rows = _load_phases(phase_root / f"{vid_dir.name}-phase.txt")
         frames = sorted(
             p for p in vid_dir.iterdir() if p.suffix.lower() in FRAME_EXTS
@@ -66,14 +74,27 @@ class _VideoFrames(Dataset):
             if row < len(rows):
                 self.items.append((str(f), rows[row]))
         self.transform = transform
+        self.history_size = history_size
+        self.frameskip = frameskip
+        self._lookback = (history_size - 1) * frameskip
 
     def __len__(self):
-        return len(self.items)
+        return max(0, len(self.items) - self._lookback)
 
     def __getitem__(self, i):
-        path, label = self.items[i]
-        img = read_image(path, ImageReadMode.RGB)
-        return {"pixels": self.transform(img), "label": label}
+        end = i + self._lookback  # last frame in the window (the "current" one)
+        if self.history_size == 1:
+            path, label = self.items[end]
+            return {"pixels": self.transform(read_image(path, ImageReadMode.RGB)),
+                    "label": label}
+
+        frames = []
+        for k in range(self.history_size):
+            path, _ = self.items[i + k * self.frameskip]
+            frames.append(self.transform(read_image(path, ImageReadMode.RGB)))
+        pixels = torch.stack(frames, dim=0)  # (H, C, H, W)
+        label = self.items[end][1]
+        return {"pixels": pixels, "label": label}
 
 
 class Cholec80Dataset(ConcatDataset):
@@ -87,6 +108,8 @@ class Cholec80Dataset(ConcatDataset):
         train_ratio=0.6,
         img_size=224,
         seed=3072,
+        history_size=1,
+        frameskip=1,
     ):
         assert split in ("train", "val", "all")
         frames_root = Path(frames_root)
@@ -109,7 +132,12 @@ class Cholec80Dataset(ConcatDataset):
             if not (phase_root / f"{v.name}-phase.txt").exists():
                 skipped += 1
                 continue
-            per_video.append(_VideoFrames(v, phase_root, transform))
+            vf = _VideoFrames(
+                v, phase_root, transform,
+                history_size=history_size, frameskip=frameskip,
+            )
+            if len(vf) > 0:
+                per_video.append(vf)
 
         super().__init__(per_video)
         msg = (
