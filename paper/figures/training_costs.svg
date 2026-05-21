@@ -1,0 +1,159 @@
+
+<svg class="main-svg" width="620" height="400" style="" viewBox="0 0 620 400" version="1.1" id="svg83" sodipodi:docname="training_costs.svg" inkscape:version="1.4.3 (0d15f75042, 2025-12-25)" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview id="namedview83" pagecolor="#ffffff" bordercolor="#000000" borderopacity="0.25" inkscape:showpageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:deskcolor="#d1d1d1" inkscape:zoom="2.9972204" inkscape:cx="302.61372" inkscape:cy="159.14746" inkscape:window-width="2880" inkscape:window-height="1800" inkscape:window-x="1920" inkscape:window-y="1080" inkscape:window-maximized="1" inkscape:current-layer="svg83"/>
+  <rect x="0" y="0" width="620" height="400" style="fill:#faf9f9;fill-opacity:1" id="rect1" ry="16" rx="16"/>
+  <defs id="defs-a6b3f0">
+    <g class="clips" id="g5">
+      <clipPath id="clipa6b3f0xyplot" class="plotclip">
+        <rect width="520" height="280" id="rect2"/>
+      </clipPath>
+      <clipPath class="axesclip" id="clipa6b3f0x">
+        <rect x="70" y="0" width="520" height="400" id="rect3"/>
+      </clipPath>
+      <clipPath class="axesclip" id="clipa6b3f0y">
+        <rect x="0" y="60" width="620" height="280" id="rect4"/>
+      </clipPath>
+      <clipPath class="axesclip" id="clipa6b3f0xy">
+        <rect x="70" y="60" width="520" height="280" id="rect5"/>
+      </clipPath>
+    </g>
+    <g class="gradients" id="g6"/>
+    <g class="patterns" id="g7"/>
+  </defs>
+  <g class="bglayer" id="g8"/>
+  <g class="layer-below" id="g11">
+    <g class="imagelayer" id="g9"/>
+    <g class="shapelayer" id="g10"/>
+  </g>
+  <g class="cartesianlayer" id="g65">
+    <g class="subplot xy" id="g64">
+      <g class="layer-subplot" id="g14">
+        <g class="shapelayer" id="g12"/>
+        <g class="imagelayer" id="g13"/>
+      </g>
+      <g class="minor-gridlayer" id="g17">
+        <g class="x" id="g15"/>
+        <g class="y" id="g16"/>
+      </g>
+      <g class="gridlayer" id="g26">
+        <g class="x" id="g18">
+          <path class="xgrid crisp" transform="translate(200,0)" d="M0,60v280" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path17"/>
+          <path class="xgrid crisp" transform="translate(460,0)" d="M0,60v280" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path18"/>
+        </g>
+        <g class="y" id="g25">
+          <path class="ygrid crisp" transform="translate(0,304.47)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path19"/>
+          <path class="ygrid crisp" transform="translate(0,268.93)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path20"/>
+          <path class="ygrid crisp" transform="translate(0,233.4)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path21"/>
+          <path class="ygrid crisp" transform="translate(0,197.86)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path22"/>
+          <path class="ygrid crisp" transform="translate(0,162.32999999999998)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path23"/>
+          <path class="ygrid crisp" transform="translate(0,126.79)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path24"/>
+          <path class="ygrid crisp" transform="translate(0,91.26)" d="M70,0h520" style="stroke: rgb(193, 193, 193); stroke-opacity: 1; stroke-dasharray: 3px, 3px; stroke-width: 1px;" id="path25"/>
+        </g>
+      </g>
+      <g class="zerolinelayer" id="g27"/>
+      <g class="layer-between" id="g30">
+        <g class="shapelayer" id="g28"/>
+        <g class="imagelayer" id="g29"/>
+      </g>
+      <path class="xlines-below" id="path30"/>
+      <path class="ylines-below" id="path31"/>
+      <g class="overlines-below" id="g31"/>
+      <g class="xaxislayer-below" id="g32"/>
+      <g class="yaxislayer-below" id="g33"/>
+      <g class="overaxes-below" id="g34"/>
+      <g class="overplot" id="g41">
+        <g class="xy" transform="translate(70,60)" clip-path="url(#clipa6b3f0xyplot)" id="g40">
+          <g class="barlayer mlayer" id="g39">
+            <g class="trace bars" style="opacity: 1;" id="g38">
+              <g class="points" id="g37">
+                <g class="point" id="g35">
+                  <path d="M26,280V14H234V280Z" style="vector-effect: none; opacity: 1; stroke-width: 1px; fill: rgb(45, 104, 196); fill-opacity: 1; stroke: rgb(243, 242, 242); stroke-opacity: 1;" id="path34"/>
+                </g>
+                <g class="point" id="g36">
+                  <path d="M286,280V135.35H494V280Z" style="vector-effect: none; opacity: 1; stroke-width: 1px; fill: rgb(80, 200, 120); fill-opacity: 1; stroke: rgb(243, 242, 242); stroke-opacity: 1;" id="path35"/>
+                </g>
+              </g>
+            </g>
+          </g>
+        </g>
+      </g>
+      <g class="zerolinelayer-above" id="g42"/>
+      <path class="xlines-above crisp" d="" style="fill: none; stroke-width: 1px; stroke: rgb(0, 0, 0); stroke-opacity: 0;" id="path42"/>
+      <path class="ylines-above crisp" d="" style="fill: none; stroke-width: 1px; stroke: rgb(0, 0, 0); stroke-opacity: 0;" id="path43"/>
+      <g class="overlines-above" id="g43"/>
+      <g class="xaxislayer-above" id="g47">
+        <path class="xtick ticks crisp" d="M0,341v4" transform="translate(200,0)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path44"/>
+        <path class="xtick ticks crisp" d="M0,341v4" transform="translate(460,0)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path45"/>
+        <g class="xtick" id="g45">
+          <text text-anchor="middle" x="0" y="359.4" transform="translate(200,0)" style="font-family:Inter, sans-serif;font-size:14.66666667px;fill:rgb(0, 0, 0);fill-opacity:1;white-space:pre" id="text45">LeJEPA</text>
+        </g>
+        <g class="xtick" id="g46">
+          <text text-anchor="middle" x="0" y="359.4" transform="translate(460,0)" style="font-family:Inter, sans-serif;font-size:14.66666667px;fill:rgb(0, 0, 0);fill-opacity:1;white-space:pre" id="text46">GSViT</text>
+        </g>
+      </g>
+      <g class="yaxislayer-above" id="g62">
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,340)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path47"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,304.47)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path48"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,268.93)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path49"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,233.4)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path50"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,197.86)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path51"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,162.32999999999998)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path52"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,126.79)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path53"/>
+        <path class="ytick ticks crisp" d="M69,0h-4" transform="translate(0,91.26)" style="stroke: rgb(0, 0, 0); stroke-opacity: 1; stroke-width: 1px;" id="path54"/>
+        <g class="ytick" id="g54">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" transform="translate(0,340)" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" id="text54">0</text>
+        </g>
+        <g class="ytick" id="g55">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,304.47)" id="text55">0.2</text>
+        </g>
+        <g class="ytick" id="g56">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,268.93)" id="text56">0.4</text>
+        </g>
+        <g class="ytick" id="g57">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,233.4)" id="text57">0.6</text>
+        </g>
+        <g class="ytick" id="g58">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,197.86)" id="text58">0.8</text>
+        </g>
+        <g class="ytick" id="g59">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,162.32999999999998)" id="text59">1</text>
+        </g>
+        <g class="ytick" id="g60">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,126.79)" id="text60">1.2</text>
+        </g>
+        <g class="ytick" id="g61">
+          <text text-anchor="end" x="62.6" y="4.199999999999999" style="font-family: Inter, sans-serif; font-size: 12px; fill: rgb(0, 0, 0); fill-opacity: 1; white-space: pre;" transform="translate(0,91.26)" id="text61">1.4</text>
+        </g>
+      </g>
+      <g class="overaxes-above" id="g63"/>
+    </g>
+  </g>
+  <g class="polarlayer" id="g66"/>
+  <g class="smithlayer" id="g67"/>
+  <g class="ternarylayer" id="g68"/>
+  <g class="geolayer" id="g69"/>
+  <g class="funnelarealayer" id="g70"/>
+  <g class="pielayer" id="g71"/>
+  <g class="iciclelayer" id="g72"/>
+  <g class="treemaplayer" id="g73"/>
+  <g class="sunburstlayer" id="g74"/>
+  <g class="glimages" id="g75"/>
+  <defs id="topdefs-a6b3f0">
+    <g class="clips" id="g76"/>
+  </defs>
+  <g class="layer-above" id="g79">
+    <g class="imagelayer" id="g77"/>
+    <g class="shapelayer" id="g78"/>
+  </g>
+  <g class="infolayer" id="g83">
+    <g class="g-gtitle" id="g80">
+      <text class="gtitle" x="310" y="30" text-anchor="middle" dy="0em" style="opacity:1;font-family:Inter;font-size:17.33333333px;fill:rgb(0, 0, 0);fill-opacity:1;white-space:pre;-inkscape-font-specification:'Inter Bold';font-weight:bold;font-style:normal;font-stretch:normal;font-variant:normal" id="text79"><tspan style="font-weight:bold;font-size:17.33333333px;-inkscape-font-specification:'Inter Bold';font-family:Inter;font-style:normal;font-stretch:normal;font-variant:normal" id="tspan79">Training Cost</tspan></text>
+    </g>
+    <g class="g-xtitle" id="g81">
+      <text class="xtitle" x="330" y="386.70038" text-anchor="middle" style="font-size:17.3333px;font-family:Inter, sans-serif;white-space:pre;opacity:1;fill:#000000;fill-opacity:1" id="text80"><tspan style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:17.3333px;font-family:Inter;-inkscape-font-specification:'Inter Bold'" id="tspan80">Models</tspan></text>
+    </g>
+    <g class="g-ytitle" id="g82">
+      <text class="ytitle" transform="rotate(-90,24.715234,200)" x="24.715235" y="200" text-anchor="middle" style="font-size:17.3333px;font-family:Inter, sans-serif;white-space:pre;opacity:1;fill:#000000;fill-opacity:1" id="text81"><tspan style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:17.3333px;font-family:Inter;-inkscape-font-specification:'Inter Bold'" id="tspan81">Training GPU-Days</tspan></text>
+    </g>
+  </g>
+</svg>

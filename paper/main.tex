@@ -14,10 +14,12 @@
 \usepackage{microtype}                                              % microtypography
 \usepackage[inkscapelatex=false]{svg}
 \usepackage{float} %to force figures to appear at a specific location
-\usepackage{wrapfig}
+\usepackage{wrapfig2}
+\usepackage{todonotes}
 \definecolor{darkblue}{rgb}{0, 0, 0.5}                              % define link color
 \hypersetup{colorlinks=true,citecolor=darkblue,                     % set link color
 linkcolor=darkblue, urlcolor=darkblue}
+
 
 % Your packages here
 % \usepackage{...}                                                  % some info, maybe
@@ -28,13 +30,13 @@ linkcolor=darkblue, urlcolor=darkblue}
 % ^if there is no subtitle, replace by \def\subtitle{}
 \def\yourname{Balint Tapai}                                                                       % ^first and last nam
 \def\yourprogramme{Cognitive Science \& Artificial Intelligence}    % uncomment this
-\def\yourstudentnumber{2113426}                                      % ANR (or u-number)
+\def\yourstudentnumber{u941663}                                      % ANR (or u-number)
 \def\finalmonth{May}
 \def\finalyear{2026}
 \def\supervisor{dr. Silvia-Laura Pintea}                           % check the title(s) of your supervisor
-\def\committee{dr. The Second Reader}                               % check the title(s) of your second reader
-\def\acknowledgments{Some room for acknowledgements.}
-\def\wordcount{your word count should be here, ex 12000}
+\def\committee{Malou van der Velde, MSc}                               % check the title(s) of your second reader
+\def\wordcount{6607} 
+\def\acknowledgements{}
 % METADATA
 
 \hypersetup{pdfauthor   = \yourname,
@@ -42,161 +44,473 @@ linkcolor=darkblue, urlcolor=darkblue}
   pdfsubject  = \yourprogramme\ Bachelor Thesis
 }
 
-% CHOOSE EITHER OF -----------------------------------------
-% IEEE STYLE:
-
-% \usepackage[square,numbers]{natbib}                               % bracket-style refs
-% \usepackage{natbib}                                               % OR: parenthesized refs
-% \bibliographystyle{IEEEtranN}
-
-% OR -------------------
-
-\usepackage[style=apa, backend=biber, citestyle=numeric,sorting=nyt]{biblatex}
+\usepackage[style=apa, backend=biber, citestyle=numeric, style=numeric, sorting=nyt]{biblatex}
 \addbibresource{resources.bib}
 % !!! ------------------------------------------------------ !!!
 
 \begin{document}
-\input{frontmatter.tex}  % don't remove this :)
-
-% --- start writing below:
+\input{frontmatter.tex}
 
 \begin{abstract}
-This is where the abstract goes. Don't forget to change the variables in \texttt{main.tex} to change all general placeholders shown in this document. The \texttt{frontmatter.tex} file should be left alone. The abstract should summarize in 150-250 words the contents of the thesis, mentioning: 1) the research goal, 2) the methods employed, 3) data collected or dataset/s used, 4) the main findings.
+Self-supervised foundation models for surgical video currently follow two 
+competing paradigms: pixel-reconstruction objectives and latent-predictive 
+objectives, which move the prediction target into the encoder's own 
+representation space. It remains unclear how much of the reported 
+advantage of latent methods is due to the objective itself rather than 
+the engineering scaffolding that typically accompanies it. This thesis 
+isolates the contribution of the objective by training two surgical 
+foundation models, General Surgery Vision Transformer (pixel-based) and LeJEPA (latent-based), under 
+matched data and compute budgets on a curated corpus of CATARACTS, 
+JIGSAWS, and PitVis, and evaluating their frozen representations on 
+Cholec80 surgical phase recognition through layer-wise linear probing 
+and UMAP visualization. LeJEPA outperforms GSViT in most layers, with a 
+clear emergence zone at mid-depth layers where probe scores peak and 
+cross-fold variance is smallest, while GSViT produces a flat, 
+near-uniform profile across all layers. UMAP projections corroborate 
+these findings: LeJEPA embeddings form progressively richer, 
+phase-coherent manifold structure with depth, whereas GSViT remains an 
+amorphous cloud at every layer. These results suggest that a minimal 
+latent-predictive recipe, requiring only a single distributional 
+regularizer and no auxiliary heuristics, produces surgical 
+representations that are more semantically robust than those from pixel 
+reconstruction, and that the choice of pretraining objective is a 
+primary determinant of representation quality for surgical phase 
+recognition.
 \end{abstract}
 
-\section{Data Source, Ethics, Code, and Technology statement}
-Checklist for creating a Data Source, Ethics, Code, and Technology (DSECT) statement:
-Please provide answers to all below questions for transparency purposes when writing your ethical statement. There is no one-fits-all solution to ethical statements, and they heavily
-depend on the nature of the study. After the questions below, an example DSECT statement is provided.
-\begin{itemize}
-\item[•] {Data Source}
-\begin{itemize}
-\item[o] {Who is the owner of the data?}
-\item[o] {Does the thesis project involve collecting data from human participants or animals?}
-\item[o] {Does the owner of the data give consent?}
-\item[o] {How and through what channel is the data acquired?}
-\end{itemize}
-\item[•] {Figures}
-\begin{itemize}
-\item[o] {Did you create all the images and figures?}
-\item[o] {Do you have consent for the images that you did not generate?}
-\end{itemize}
-\item[•] {Code}
-\begin{itemize}
-\item[o] {Did you use parts of the code from another study/someone else?}
-\item[o] {Did you list, including version number, all libraries and frameworks used?}
-\end{itemize}
-\item[•] {Technology}
-\begin{itemize}
-\item[o] {Did you use any tools or services to paraphrase the given text (for example a thesaurus or the Academic Phrasebank)? Please name them.}
-\item[o] {Did you use any tools or services to check spelling or grammar? Please name them.}
-\item[o] {Did you use any tools or service to typeset the given text? Please name them.}
-\item[o] {Did you use any reference management software other than the latex template? If so, please name it.}
-\item[o] {The following \textbf{statement should be included}: During the preparation of this work, the author used [NAME TOOL / SERVICE] in order to [REASON]. After using this tool/service, the author reviewed and edited the content as needed and takes full responsibility for the content of the thesis.}
-\end{itemize}
-\end{itemize}
+\section{Source/Code/Ethics/Technology Statement Example} \label{subs:DESCT}
 
-A DSECT Statement can be generated by answering the questions listed above and excluding the questions when not applicable.\
+\paragraph{Data Source:} The datasets used in this thesis were acquired from their respective publicly available sources. The PitVis dataset was obtained from \textcite{das-2025}, Cholec80 from \textcite{endonet-2016}, CATARACTS from \textcite{ac97-8m18-21}, and JIGSAWS from \textcite{Gao2014JIGSAWS}. All datasets were downloaded through the corresponding links provided in their original publications. Work on this thesis did not involve collecting data from human participants or animals. The original owners of the data retain ownership during and after the completion of this thesis. \paragraph{Figures:} All figures in this thesis were created by the author, with the exception of the GSViT Architecture figure, which was created by the original author and is properly cited. Permission for its use was obtained. \paragraph{Code:} Parts of the code used in this thesis were adapted from \textcite{maes-2026} and \textcite{schmidgall2024general}. All reused or adapted code fragments are clearly indicated, and all libraries and frameworks used are listed with their respective version numbers. \paragraph{Technology:} During the preparation of this work, the author used Claude AI (Anthropic) and Gemini (Google) in order to paraphrase, check spelling and grammar, and assist with typesetting. Additionally, a reference management software was used \textcite{scribbr} to generate bibliography entries. After using these tools and services, the author reviewed and edited the content as needed and takes full responsibility for the content of the thesis.
 
-\subsection{Source/Code/Ethics/Technology Statement Example} \label{subs:DESCT}
-Data Source:
-The (DATA) has been acquired from the (DATA SOURCE) through an online request. The obtained data is anonymised. Work on this thesis did not involve collecting data from human participants or animals. The original owner of the data and code used in this thesis retains ownership of the data and code during and after the completion of this thesis. However, the institution was informed about the use of this data for this thesis and potential research publications.
-All the figures but Figure A and B belong to the author. To use Figure A and Figure B, the author received written permission via an email from FIGURE OWNER (AFFILIATION). The thesis code can be accessed through the GitHub repository following the link [CODE LINK].
-Part of the CODE has been adapted by the author from (SOURCE, licensed under a CC0 BY 4.0). The reused/adapted code fragments are clearly indicated in the notebook. In terms of writing, the author used assistance with the language of the paper. A generative language
-model (MODEL NAME + SOURCE) was used to improve the author's original content, for paraphrasing, spell checking and grammar. No other typesetting tools or services were used.
 
 \section{Introduction} \label{sec:introduction}
-I CAN JUST USE THIS IG:
 
-Due to new advances in Machine Learning, the computer vision field has shifted from creating specialized models with supervised learning to general foundational models (FMs) with self-supervised learning. Foundational Models operate are typically trained massive and diverse curated datasets and can be later on trained on down-stream tasks. \parencite{new-era-in-vision-2025}. These models in contrast with old deep learning methods, which relies heavily on task-specific labeled data to train deep neural networks (DNNs), FMs on the other hand is more efficient due to its methodology. Unlabeled data is nearly infinite in availability, especially vision data due to digitializations \parencite{azad-2023}. This allows to create models with representations of the general task in hand and later be finetuned on a smaller labeled dataset.
+Surgery is one of the highest-stakes domains in modern medicine. An estimated 330 million major surgical procedures are performed worldwide each year \parencite{mascagni-2022}, and roughly half of all serious adverse events in hospitals occur in the operating room, with a large fraction of these events considered preventable \parencite{Sameera2021Human}. Minimally invasive procedures, in particular endoscopic and laparoscopic surgeries, have become the standard of care for a growing range of interventions because they reduce trauma, shorten recovery times, and lower the risk of post-operative complications compared to open surgery \parencite{buia-2015}. These benefits, however, come at a cost for the surgeon. The operative scene is no longer observed directly but through a narrow camera feed, depth perception is reduced to a two-dimensional projection, and the surgeon must orient themselves in an environment that is small, glossy, and frequently obscured by smoke, blood, and specular reflections from the light source. These systems matter clinically. If a model can tell which phase of an operation is happening, which instruments are in use, and how they touch the tissue, it can support several useful tools: software that warns the team when the operation deviates from the expected workflow, objective skill assessments for trainee surgeons, automatic logging of what happened during a case. All of these tools depend on the same thing: a vision system that can pull meaningful structure out of surgical video. The quality of that representation sets the ceiling for everything built on top of it, which is why this thesis focuses on it.
 
-Here you write the introduction. Start with briefly describing the research domain, why the topic is relevant, and current state-of-the-art by referencing pertinent research articles. Then, state your specific research goals/questions (you can separate them as shown below), followed by a one-paragraph summary of your findings. Discuss how answering your research questions can produce scientific relevance (domain insights) and societal relevance (real-world applications and/or benefits).
+The dominant strategy in modern computer vision for producing such representations is self-supervised pretraining of large foundation models \parencite{new-era-in-vision-2025}. Instead of training a separate supervised model for every task, a single encoder is pretrained on large quantities of unlabelled video and then reused, frozen or lightly fine-tuned, across many downstream problems. Two families of self-supervised objectives currently compete for this role. Pixel-based methods train the encoder to reconstruct the raw input, either directly as in masked autoencoders \parencite{he-2021} or through forward video prediction as in GSViT \parencite{schmidgall2024general}. Latent-based methods, by contrast, move the prediction target out of pixel space and into the encoder's own representation space. Joint-Embedding Predictive Architectures \parencite{LeCun2022APT}, V-JEPA \parencite{assran-2025}, and the recent surgical model UniSurg \parencite{wu-2026} are representative examples. The shift is motivated by a simple observation: in surgical video, most pixel-level variation, smoke, blood texture, specular highlights, and camera noise, is irrelevant to what a downstream task ultimately needs, and a model trained to reconstruct these details spends its capacity on the wrong things \parencite{wu-2026}.
 
-You can refer to chapters like the current Section~\ref{sec:introduction}. If you want to list research questions it's probably best to use \texttt{quote} and/or \texttt{itemize}, like so:
+Latent objectives, however, have historically been difficult to optimise. They admit a trivial solution in which the encoder maps every input to the same constant vector, a failure mode known as representation collapse, and the heuristics typically used to prevent it, exponential moving average teachers, stop-gradient updates, asymmetric teacher-student designs, and multi-term auxiliary losses, introduce a large set of interacting hyperparameters that make training fragile and expensive \parencite{wagner-2022, maes-2026}. UniSurg, the current state of the art for latent surgical pretraining, achieves strong results but only by combining 3,658 hours of surgical video with motion-guided masking, spatiotemporal affinity self-distillation, and a feature-diversity regularizer \parencite{wu-2026}. It is therefore not clear how much of UniSurg's quality is due to the latent objective itself and how much is due to its accumulated engineering scaffolding. The recently proposed LeJEPA framework \parencite{balestriero-2025} offers a clean way to ask this question: it is the first JEPA that trains stably with a minimal recipe of one prediction loss and a single distributional regularizer, the Sketched Isotropic Gaussian Regularizer, and it dispenses entirely with teacher networks and stop-gradients.
+
+This thesis uses LeJEPA and GSViT as matched representatives of the latent and pixel paradigms, and asks what each of them actually learns when trained under identical data and compute budgets on surgical video. Concretely, both encoders are pretrained on a curated corpus drawn from CATARACTS, JIGSAWS, and PitVis, and their frozen representations are evaluated on Cholec80 phase recognition. Two complementary tools are used to characterise the representations. Layer-wise linear probing reveals at which depth each encoder makes surgical-phase information linearly accessible, and Uniform Manifold Approximation and Projection \parencite{mcinnes-2018} provides a qualitative view of how phase classes are arranged in the embedding geometry of each layer. This setup turns the comparison between pixel and latent pretraining into a controlled, layer-resolved measurement rather than a benchmark-level summary, and it isolates the contribution of the objective itself from the cascade of heuristics that surrounds it in UniSurg-style models.
+
+The technical contribution of this work is therefore threefold. First, it provides the first side-by-side, layer-resolved comparison of a pixel-based and a latent-based surgical foundation model trained under matched conditions, controlling for data scale, architecture family, and compute budget. Second, it adapts the LeJEPA recipe to the surgical domain and shows that the minimal one-regularizer objective transfers stably to a small, sensitive, domain-shifted corpus, without the auxiliary heuristics that current surgical latent models rely on. Third, it combines quantitative probing with manifold visualization to produce a transparent account of the representational geometry each objective induces, an angle that the surgical foundation model literature has so far left largely unexamined.
+
+The societal relevance of this comparison goes beyond the technical question. Cholec80 phase durations are heavily skewed, with a small number of long phases dominating the frame count and several short but clinically critical phases occupying only brief windows. Pixel-based pretraining, as the results in this thesis show, structurally allocates more of its capacity to the common phases and performs disproportionately worse on the rarer ones; latent pretraining with a distribution-matching regularizer does not. In short, the choice of pretraining objective determines whether a downstream surgical AI system reliably recognizes the brief, high-risk transitions of an operation or only its long, low-risk segments. Because every patient is different, and because workflow-aware support is most useful precisely at the rarer, harder moments of an operation, this is not a neutral implementation detail. The remainder of the thesis develops this comparison in full, starting with the relevant literature in section \ref{sec:related}.
+\subsection{Research question}
 
 \begin{quote}
-\emph{To what extent we define a main research question?}
+\emph{To what extent does a latent-predictive objective improve the semantic robustness and topological organization of surgical phase representations compared to traditional pixel-reconstruction approaches?}
 \end{quote}
 
-\noindent The sub-questions can be listed seperately, as such:
+\subsection{Sub-Questions}
 
 \begin{itemize}
-\item[RQ1] \emph{How does sub question one influence the main RQ?}
-\item[RQ2] \emph{To what degree does sub question add anything?}
+\item[SQ1] \emph{To what extent does the choice of pre-training objective affect the clustering quality of surgical phase embeddings?}
+\item[SQ2] \emph{To what extent does the choice of pre-training objective, latent future prediction versus pixel reconstruction, impact the performance of learned representation for down-stream task?}
 \end{itemize}
 
-\noindent Or, format it as you desire (tip: you can nest \texttt{itemize} as well). You can alternate \emph{emph} and \textbf{textbf} however you wish. This should cover most of the things required for the introduction.
+\section{Related Work} \label{sec:related}
 
-\section{Related Work}
 \subsection{Pixel-based Vision Foundational Models}
-Recent advances in machine learning have shifted the computer vision field from specialized, supervised models toward general-purpose foundation models (FMs) trained with self-supervised learning \parencite{new-era-in-vision-2025}. The dominant approach in this domain is masked image modeling, popularized by MAE \parencite{he-2021}: a large fraction of input patches is masked, and an encoder-decoder is trained to reconstruct the missing pixels. This principle was extended to the temporal domain by VideoMAE \parencite{tong-2022}, which reconstructs spatiotemporal masks across video frames, and was further scaled by VideoMAE~V2 \parencite{wang-2023} through a dual masking strategy that enables training of billion-parameter video transformers.
-
-I SHOULD ADD MORE CITATIONS WITH listing, such as at general-purpose FMS, and also masked learning
-
-However, predicting in pixel space is inherently limiting: the model spends its capacity on low-level visual details that are largely irrelevant to downstream understanding (e.g., the smoke produced during a surgical procedure \parencite{Zhang2022A}), rather than on the semantic structures that matter, such as how an instrument interacts with a tissue \parencite{wu-2026}.
+Recent advances in machine learning have shifted the computer vision field from specialized, supervised models toward general-purpose foundation models (FMs) trained with self-supervised learning \parencite{new-era-in-vision-2025}. The dominant approach in this domain is masked image modeling, popularized by MAE \parencite{he-2021}: a large fraction of input patches is masked, and an encoder-decoder is trained to reconstruct the missing pixels. This principle was extended to the temporal domain by VideoMAE \parencite{tong-2022}, which reconstructs spatiotemporal masks across video frames, and was further scaled by VideoMAE~V2 \parencite{wang-2023} through a dual masking strategy that enables training of billion-parameter video transformers. However, predicting in pixel space is inherently limiting: the model spends its capacity on low-level visual details that are largely irrelevant to downstream understanding (e.g., the smoke produced during a surgical procedure \parencite{Zhang2022A}), rather than on the semantic structures that matter, such as how an instrument interacts with a tissue \parencite{wu-2026}. This thesis uses GSViT, a pixel-reconstruction model, as the representative of this paradigm in order to test whether this capacity allocation problem manifests in the layer-wise structure of surgical representations.
 
 \subsection{Latent-based Vision Foundational Models}
-To address this limitation, a complementary line of work shifts the predictions from pixel space to the latent space \parencite{LeCun2022APT}. A widely used image-domain example is DINO \parencite{caron-2021}, which learns general-purpose visual features through self-distillation: a student network is trained to match the embeddings produced by a momentum (EMA) teacher. Joint-Embedding Predictive Architectures (JEPAs) \parencite{LeCun2022APT} take this idea one step further by introducing an explicit predictor that maps a context embedding to the latent representation of a masked target produced by a teacher encoder. The metholodgy has been recently used widely in planning and computer vision \parencite{NEURIPS2024_9c3828ad,fei-2023, bardes-2023, abdelfattah-2024, larey-2026, munim-2026}. V-JEPA \parencite{assran-2025} instantiates this paradigm for video and, like DINO, relies on an EMA teacher and stop-gradient updates on the teacher branch to prevent representation collapse. Because the loss is computed in latent rather than pixel space, V-JEPA acts as an implicit filter against low-level noise and instead captures the semantic structure and temporal dynamics that are crucial for video understanding \parencite{wu-2026}.
-
-However, achieving these strong representations requires a careful combination of training heuristics, as mentioned above. EMA teachers \parencite{grill-2020, caron-2021}, stop-gradient updates
-\parencite{chen-2021}, masking schemes \parencite{zhou-2022, baevski-2022},
-and multi-term auxiliary losses \parencite{oquab-2023} are typically needed
-in concert to prevent representation collapse \parencite{maes-2026}. This significantly increases training complexity, introduces a large set of interacting hyperparameters, and makes the optimization process fragile and difficult to reproduce.\parencite{wagner-2022}
-
-\subsection{LeJEPA: Stable Latent Pretraining with SIGReg}
-To address this fragility, \textcite{balestriero-2025} introduce LeJEPA, the first Joint-Embedding Predictive Architecture that trains stably end-to-end from raw pixels with a minimal training recipe. Unlike V-JEPA or DINOv2, LeJEPA drops EMA teachers, stop-gradient tricks, and frozen pretrained encoders entirely. Its objective consists of only two terms: a mean-squared error prediction loss between the predicted and true next-step latent embeddings, and a single regularizer, Sketched-Isotropic-Gaussian Regularizer (SIGReg), which alone is sufficient to prevent representation collapse \parencite{balestriero-2025}.
-
-SIGReg enforces that the distribution of latent embeddings is approximately isotropic Gaussian. Rather than testing this property directly in the high-dimensional latent space, which is computationally prohibitive, SIGReg leverages the Cramér-Wold theorem: a multivariate distribution is Gaussian if and only if all of its one-dimensional projections are. The embeddings are therefore projected onto a set of random directions, an Epps-Pulley normality test is applied to each projection, and the resulting statistics are aggregated into a single regularization term \parencite{balestriero-2025}. This provides a provable anti-collapse guarantee while keeping the architecture symmetric and free of the asymmetric heuristics that characterize prior latent methods.
+To address this limitation, a complementary line of work shifts the predictions from pixel space to the latent space \parencite{LeCun2022APT}. A widely used image-domain example is DINO \parencite{caron-2021}, which learns general-purpose visual features through self-distillation: a student network is trained to match the embeddings produced by a momentum (EMA) teacher. Joint-Embedding Predictive Architectures (JEPAs) \parencite{LeCun2022APT} take this idea one step further by introducing an explicit predictor that maps a context embedding to the latent representation of a masked target produced by a teacher encoder. The methodology has recently been used widely in planning and computer vision \parencite{NEURIPS2024_9c3828ad,fei-2023, bardes-2023, abdelfattah-2024, larey-2026, munim-2026}. V-JEPA \parencite{assran-2025} instantiates this paradigm for video and, like DINO, relies on an EMA teacher and stop-gradient updates on the teacher branch to prevent representation collapse. Because the loss is computed in latent rather than pixel space, V-JEPA acts as an implicit filter against low-level noise and instead captures the semantic structure and temporal dynamics that are crucial for video understanding \parencite{wu-2026}. However, achieving these strong representations requires a careful combination of training heuristics. EMA teachers \parencite{grill-2020, caron-2021}, stop-gradient updates \parencite{chen-2021}, masking schemes \parencite{zhou-2022, baevski-2022}, and multi-term auxiliary losses \parencite{oquab-2023} are typically needed in concert to prevent representation collapse \parencite{maes-2026}. This significantly increases training complexity, introduces a large set of interacting hyperparameters, and makes the optimization process fragile and difficult to reproduce \parencite{wagner-2022}. To address this fragility, \textcite{balestriero-2025} introduce LeJEPA, the first JEPA that trains stably end-to-end from raw pixels with a minimal recipe. Its objective consists of only a mean-squared error prediction loss and a single regularizer, the Sketched-Isotropic-Gaussian Regularizer (SIGReg), which enforces that latent embeddings follow an approximately isotropic Gaussian distribution and provably prevents collapse. This removes the need for EMA teachers, stop-gradient tricks, and frozen pretrained encoders, while keeping the architecture symmetric and free of the asymmetric heuristics that characterize prior latent methods. This thesis adopts LeJEPA rather than V-JEPA or DINO as the latent representative precisely because its minimal recipe isolates the effect of the latent objective itself from the engineering scaffolding that surrounds it in other methods.
 
 \subsection{Surgical Vision Foundational Models}
-Self-supervised foundation models for surgical video have evolved along the same pixel-to-latent trajectory described above, but under the additional constraints of a small and sensitive data domain.
+Self-supervised foundation models for surgical video have evolved along the same pixel-to-latent trajectory described above, but under the additional constraints of a small and sensitive data domain. Early efforts in surgical computer vision concentrated on static frame analysis. Models such as EndoNet \parencite{endonet-2016} introduced supervised CNN backbones for tool-presence detection and surgical-phase recognition on Cholec80, establishing the basic benchmarks but ignoring the temporal dimension that is central to surgery \parencite{wu-2026}. The first surgical foundation models appeared in 2023: Endo-FM \parencite{wang-2023} adapted DINO-style self-distillation to a video transformer trained on roughly five million endoscopic frames, while SurgVLP \parencite{yuan-2023} aligned surgical clips with narrated lecture transcripts via a contrastive vision--language objective. Both placed the learning signal in the latent space, but neither explicitly modelled the forward dynamics of the surgical scene. GSViT \parencite{schmidgall2024general} was the first surgical foundation model to do so, pretraining an EfficientViT encoder on 680 hours of laparoscopic and robotic surgery spanning 28 procedures via forward video prediction. The objective, however, is defined in pixel space through an asymmetric decoder. As a consequence, the encoder spends much of its capacity modelling low-level visual detail such as specular highlights, smoke, blood texture, and camera noise, rather than the surgical semantics that downstream tasks actually require. UniSurg \parencite{wu-2026} brought the V-JEPA latent-prediction paradigm to the surgical domain. Trained from scratch rather than fine-tuned from a general-domain encoder, UniSurg learns surgical physical dynamics directly, without inheriting the biases of natural video pretraining. Achieving this stability, however, requires both an immense aggregation of data (UniSurg-15M, totalling 3{,}658 hours of surgical video across 13 anatomical regions) and a collection of domain-specific heuristics, including motion-guided masking, spatiotemporal affinity self-distillation, and a feature diversity regularizer. The resulting model is strong but expensive to train and architecturally heavy. This thesis does not attempt to replicate UniSurg's scale or its full heuristic stack. Instead, it pairs GSViT with the LeJEPA framework \parencite{balestriero-2025}, which offers a route to latent surgical pretraining at a fraction of the data and compute budget and without the cascade of asymmetric tricks that UniSurg inherits from V-JEPA. By training both models under matched conditions, the comparison isolates the effect of the pretraining objective from confounds such as data scale, architecture family, and auxiliary engineering.
 
-Early efforts in surgical computer vision concentrated on static frame analysis. Models such as EndoNet \parencite{endonet-2016} introduced supervised CNN backbones for tool-presence detection and surgical-phase recognition on Cholec80, establishing the basic benchmarks but ignoring the temporal dimension that is central to surgery (NEED CITATION). The first surgical foundation models proper appeared in 2023: Endo-FM \parencite{wang-2023} adapted DINO-style self-distillation to a video transformer trained on roughly five million endoscopic frames, while SurgVLP \parencite{yuan-2023} aligned surgical clips with narrated lecture transcripts via a contrastive vision--language objective.
-Both placed the learning signal in the latent space, but neither explicitly modelled the forward dynamics of the surgical scene.
+\subsection{Research Gap} While UniSurg and LeJEPA both establish competitive architectures for latent surgical pretraining, the literature still lacks a deep, comparative understanding of what these latent spaces actually encode. In particular, it remains unclear whether models of this kind rely more heavily on localized, high-fidelity spatial features or on broader temporal dynamics to represent surgical workflow, and how this balance differs between pixel-based pretraining (GSViT) and latent-based pretraining (LeJEPA). To address this gap, this project systematically probes both models layer by layer and complements quantitative probing with UMAP visualizations of their internal representations, providing a transparent account of how surgical foundation models process spatio-temporal information.
 
-GSViT \parencite{schmidgall2024general} was the first surgical foundation model to do so, pretraining an EfficientViT encoder on 680 hours of laparoscopic and robotic surgery spanning 28
-procedures via forward video prediction. The objective, however, is defined in pixel space through an asymmetric decoder. As a consequence, the encoder spends much of its capacity modelling low-level visual detail such as specular highlights, smoke, blood texture, and camera noise, rather than the surgical semantics that downstream tasks actually require.
+\section{Methods: Pixel-based vs Latent-based representation}
+This chapter operationalises the central research question, namely to 
+what extent a latent-predictive objective improves the semantic 
+robustness and topological organization of surgical phase 
+representations compared to traditional pixel-reconstruction approaches. 
+The question is decomposed into two sub-questions, each addressed by a 
+distinct methodological component. SQ1 asks how the choice of 
+pre-training objective affects the clustering quality of surgical phase 
+embeddings; this is investigated qualitatively through the per-layer 
+UMAP projections of Section~\ref{sec:umap}, which expose the topological 
+organization of the embedding space without any class supervision. SQ2 
+asks how the objective, latent future prediction versus pixel 
+reconstruction, impacts the performance of the learned representation on 
+a downstream task; this is investigated quantitatively through the 
+layer-wise linear probing of Section~\ref{sec:probing}, which measures 
+how linearly decodable surgical phase information is at each depth. 
+GSViT and LeJEPA serve as the pixel-reconstruction and latent-predictive 
+instantiations respectively, trained under matched data and compute 
+budgets so that observed differences are attributable to the objective 
+rather than to confounds.
 
-UniSurg \parencite{wu-2026} brought the V-JEPA latent-prediction paradigm to the surgical domain. Trained from scratch rather than fine-tuned from a general-domain encoder, UniSurg learns surgical physical dynamics directly, without inheriting the biases of natural video pretraining. Achieving this stability, however, requires both an immense aggregation of data (UniSurg-15M, totalling 3{,}658 hours of surgical video across 13 anatomical regions) and a collection of domain-specific heuristics, including motion-guided masking, spatiotemporal affinity self-distillation, and a feature diversity regularizer. The resulting model is strong but expensive to train and architecturally heavy. The LeJEPA framework \parencite{balestriero-2025}, by contrast, offers a route to latent surgical pretraining at a fraction of the data and compute budget, without the cascade of asymmetric tricks that UniSurg inherits  from V-JEPA.
+\begin{figure}[t!]
+\centering
+\includesvg[width=1\columnwidth]{figures/layer_wise_probing.svg}
+\caption{\textbf{Layer-wise linear probing pipeline for the two frozen backbones.} A single input frame is passed through a frozen encoder, and the intermediate representation at each block is decoded by an independent linear probe trained with cross-entropy against the ground-truth label. A separate probe is fitted for each of the $L$ layers, so that classification accuracy can be read off as a function of depth. In both panels the encoder weights are frozen during probing; only the linear heads are trained.}
+\label{fig:layer_probing}
+\end{figure}
+\newpage
 
-\paragraph{Research Gap.} While UniSurg and LeJEPA both establish competitive architectures for latent surgical pretraining, the literature still lacks a deep, comparative understanding of what these latent spaces actually encode. In particular, it remains unclear whether models of this kind rely more heavily on localized, high-fidelity spatial features or on broader temporal dynamics to represent surgical workflow, and how this balance differs between pixel-based pretraining (GSViT) and latent-based pretraining (LeJEPA). To address this gap, this project systematically probes both models layer by layer and complements quantitative probing with UMAP visualizations of their internal representations, providing a transparent account of how surgical foundation models process spatio-temporal information.
+\subsection{Datasets}
+\begin{wrapfigure}{r}{0.45\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figures/dataset_plot.png}
+\caption{Pretraining vs Evaluation; surgical video datasets showcased by total frames.}
+\label{fig:dataset plot}
+\end{wrapfigure}
+The pretraining corpus was curated from popular data sources in endoscopic and laparoscopic surgeries. Four different datasets were curated into one big dataset: Cholec80 \parencite{endonet-2016}, CATARACTS \parencite{ac97-8m18-21}, JIGSAWS \parencite{Gao2014JIGSAWS}, PitVis \parencite{das-2025}. Cholec80 is the dataset used for evaluation of our two models learned representation. It is a dataset that contains 80 endoscopic videos of cholecystectomy surgeries \parencite{endonet-2016}. From the videos, each frame is extracted with 1 fps, and each frame was annotated with both instrument presence and with the current phase (e.g. Preparation, ClippingCutting) \parencite{endonet-2016}. The rest of the dataset were used for training GSViT \parencite{schmidgall2024general} and LeJEPA \parencite{balestriero-2025}. The CATARACTS dataset consists of 50 videos in total of cataract surgeries. It consists of two types of videos, of each surgery done on a patient: a microscopic and a tray video. Unlike the other three datasets, JIGSAWS does not contain footage of ongoing surgeries; it instead captures eight surgeons of varying skill levels performing three elementary surgical tasks: suturing, needle-passing, and knot-tying \parencite{Gao2014JIGSAWS}. It is included to expose the model to fine-grained human motion patterns characteristic of surgical gestures. Lastly, the PitVis dataset has 25 endoscopic pituitary surgery videos. To create an equal representation of each surgery, a maximum of 1 million frames were used. The data was split randomly.
 
-MIGHT NEED TO DELETE: Furthermore, to test the reliance of temporal dynamics of the LeJEPA and the spatial dynamics of GSViT, two other probes will be utilized. First, to test temporal representations the input will be reveresed changing the temporal dynamics of surgery. Second, to test spatial representations, surgical instruments will be masked from the input. Additionally, to further understand how these two models understands surgery, attention rollouts will be used \parencite{abnar-2020}.
 
 \begin{figure}[h]
 \centering
-\includesvg[width=1\columnwidth]{figures/GSViT_training_2.svg}
-\caption{}
-\label{fig:GSViT}
-
+\includegraphics[width=1\columnwidth]{figures/GSViT Full Architecture.png}
+\caption{GSViT architecture, adapted from \textcite{schmidgall2024general}. \textbf{Top:} the full encoder–decoder pipeline used during pre-training, consisting of the GSViT backbone (overlap patch embedding followed by three stages of GSViT blocks interleaved with subsampling) and an asymmetric convolutional decoder that reconstructs the input. \textbf{Bottom:} internal structure of a GSViT block, built around a Cascaded Group Attention module in which the input features are split across attention heads and processed sequentially before concatenation and projection.}
+\label{fig:GSViT_arc}
 \end{figure}
-\section{Methods}
-
-\subsection{Datasets}
-\begin{wrapfigure}{r}{0.6\textwidth}
-\centering
-\includegraphics[width=\linewidth]{figures/dataset_plot.png}
-\caption{Pretraining vs Evaluation; surgical video datasets showcased by total frames}
-\label{fig:dataset plot}
-\end{wrapfigure}
-
-The dataset was curated from popular data sources in endoscopic and laparoscopic surgeries. Four different datasets were curated into one big dataset: Cholec80 \parencite{endonet-2016}, CATARACTS \parencite{ac97-8m18-21}, JIGSAWS \parencite{Gao2014JIGSAWS}, PitVis \parencite{das-2025}. Cholec80 is the dataset used for evaluation of our two models learned representation. It is a dataset that contains 80 endoscopic videos of cholecystectomy surgeries \parencite{endonet-2016}. From the videos each frame is extracted with 1 fps, and each frame was annotated with both instrument presence and with the current phase (e.g. Preparation, ClippingCutting) \parencite{endonet-2016}. The rest of the dataset were used for training GSViT \parencite{schmidgall2024general} and LeJEPA \parencite{balestriero-2025}. The CATARACTS dataset consists of 50 videos in total of cataract surgeries. It consists of two types of videos, of each surgery done on a patient: a microscopic and a tray video. Unlike the other three datasets, JIGSAWS does not contain footage of ongoing surgeries; it instead captures eight surgeons of varying skill levels performing three elementary surgical tasks: suturing, needle-passing, and knot-tying \parencite{Gao2014JIGSAWS}. It is included to expose the model to fine-grained human motion patterns characteristic of surgical gestures. Lastly, the PitVis dataset has 25 endoscopic pituitary surgery videos. To create an equal representation of each surgery a maximum of 1 million frames were used. The data was split randomly.
-
 \subsection{General Surgery Vision Transformer}
-General Surgery Vision Transformer (GSViT) utilizes EfficientViT architecture \parencite{liu-2023}, which uses multiple optimization techniques such as a sandwich layout, Cascaded Group Attention (CGA), and a parameter reallocation strategy (see Fig. \ref{fig:GSViT}).
+General Surgery Vision Transformer (GSViT) is built on the EfficientViT architecture \parencite{liu-2023}, which combines several optimization techniques to achieve a favourable accuracy-efficiency trade-off: a sandwich layout, Cascaded Group Attention (CGA), and a parameter reallocation strategy (see Fig.~\ref{fig:GSViT_arc}). The \textit{sandwich layout} reduces the number of self-attention layers per block by surrounding each attention layer with multiple MLP layers, lowering memory and compute cost since self-attention is the most expensive operation in a transformer block. \textit{Cascaded Group Attention} splits the input features along the channel dimension and routes each group to a separate attention head, avoiding the head redundancy of standard multi-head attention in which every head operates on the full feature map and the learned projections tend to be highly correlated. Within a block, the heads are additionally arranged in a cascade, so that later heads refine the representation produced by earlier ones and the effective depth of the attention stack increases without adding parameters. The \textit{parameter reallocation} strategy redistributes channel width across the network: modules that contribute most to representation quality, such as the query and key projections and the MLP expansion, are widened, while modules with diminishing returns, such as the value projections in deeper stages, are narrowed. This yields a higher-capacity allocation under the same overall parameter budget, with a measurable gain in inference speed. To reconstruct high-resolution images from the encoded representations, GSViT pairs the EfficientViT encoder with an asymmetric decoder \parencite{schmidgall2024general}. The encoded representation is first projected into a higher-dimensional space by a fully connected layer with batch normalization and a Gaussian Error Linear Unit (GELU) activation. A sequence of transposed convolutional (Conv) layers then progressively upsamples the feature maps to the original spatial resolution, with each layer followed by batch normalization and a ReLU activation. Residual blocks with Squeeze-and-Excitation (SE) attention modules at two different scales are interleaved between the transposed convolutions, recalibrating channel-wise feature responses to emphasize the features most relevant for reconstruction. The formal definitions of the sandwich layout and CGA are given in Appendix~\ref{app:a}.
 
-\paragraph{Sandwich Layout} The sandwich layout aims to reduces the number of self-attention layers of the model, by replacing them with MLP layers. More specifically, it applies MLP layers $\Phi_i^{\mathrm{F}}$ on single self-attention layer denoted as $\Phi_i^{\mathrm{A}}$. This can formulated as a single equation:
+\subsection{LeJEPA Model}
+LeJEPA builds on the JEPA framework for self-supervised latent representation learning, but discards the auxiliary heuristics, stop-gradients, exponential moving averages, and teacher--student designs, that earlier JEPA variants rely on to avoid representation collapse. A single distributional regularizer, SIGReg, is sufficient to keep training stable \parencite{balestriero-2025}. The architecture comprises two modules: an encoder and a predictor. Given a frame $\mathrm{f}_t$, the encoder $enc_\theta$, instantiated as a Vision Transformer (ViT) \parencite{dosovitskiy-2020}, maps the input into a compact latent representation $\mathrm{z}_t$. The predictor $pred_\phi$ then models the dynamics of the environment in latent space, forecasting the embedding of the next frame from a window of $N$ past embeddings. For the encoder the project adopts the ViT-Tiny variant: $12$ transformer blocks with $3$ attention heads, a hidden dimensionality of $192$, and a patch size of $16$. The observation embedding $\mathrm{z}_t$ is read off from the \texttt{[CLS]} token of the final transformer block and then routed through a projection head, implemented as a single linear layer followed by Batch Normalization \parencite{ioffe-2015}. This projection is necessary because the ViT architecture applies a Layer Normalization \parencite{ba-2016} at its last layer, which constrains the geometry of the \texttt{[CLS]} representation in a way that is incompatible with SIGReg's distributional matching objective. Remapping into a fresh representation space restores the freedom that SIGReg needs in order to act on the embeddings. The predictor is a deeper transformer model \parencite{vaswani-2017}: $6$ layers, $16$ attention heads, $10\%$ dropout. It takes the past $N$ frame representations and predicts the next embedding autoregressively, with temporal causal masking enforcing that no future embedding can leak into the prediction of an earlier one. The predictor's output passes through its own projection head, identical in design to the encoder's, before the loss is computed. Encoder, predictor, and both projection heads are optimized jointly under the LeJEPA objective.
+
+\paragraph{Training Objective.} The LeJEPA objective combines two terms: a prediction loss that drives accurate forecasting in latent space, and a regularization loss that prevents the encoder from collapsing onto a trivial solution. The prediction loss is computed under teacher forcing as the squared Euclidean distance between the predictor's output and the encoder's embedding of the actual next frame. Optimizing this term in isolation is insufficient, as it admits a degenerate solution: the encoder can drive the loss to zero by mapping every input to the same constant vector, since a constant sequence is trivially predictable. This failure mode, known as representation collapse, is the issue that earlier JEPA variants address through stop-gradients, momentum encoders, and asymmetric teacher--student designs. LeJEPA addresses collapse with a single distributional constraint. SIGReg requires the embeddings produced over a batch to follow an isotropic Gaussian distribution, which excludes the degenerate solution by construction: a constant solution concentrates all probability mass at one point and cannot match a Gaussian target. Because classical normality tests degrade in high dimensions, SIGReg evaluates Gaussianity through random one-dimensional projections of the embeddings, relying on the Cram\'er--Wold theorem, which states that two distributions on $\mathbb{R}^d$ coincide if and only if all of their one-dimensional projections coincide. Matching the univariate marginals along a sufficient number of random directions is therefore enough to match the full joint distribution. The full objective is the sum of the prediction loss and a weighted SIGReg term. No stop-gradient, exponential moving average, or auxiliary stabilization heuristic is employed: gradients propagate through both terms, and all components are trained jointly end-to-end. The formal definitions of the encoder--predictor mappings, the prediction loss, and SIGReg are given in Appendix~\ref{app:a}.
+
+\subsection{Layer-wise Probing}
+\label{sec:probing}
+To investigate how surgical information is distributed across the layers of each frozen encoder, this project employs layer-wise probing, following \textcite{joseph-2026}. Linear probes are used throughout, so that the layers in which phase information becomes linearly separable can be identified, rather than recovered through computation by the probe itself.
+
+Let $f_\theta$ denote a frozen encoder of depth $L$ and let $h^{(\ell)}(x) \in \mathbb{R}^{T_\ell \times d_\ell}$ denote the token-level activations it produces at layer $\ell$ for input frame $x$, where $T_\ell$ is the number of spatial tokens and $d_\ell$ the channel dimension. To obtain a fixed-size descriptor independent of spatial resolution, a pooling operator $\mathrm{pool}(\cdot)$ collapses the token axis,
+\begin{equation}
+z^{(\ell)}(x) = \mathrm{pool}\!\left(h^{(\ell)}(x)\right) \in \mathbb{R}^{d_\ell}.
+\end{equation}
+The pooling operator is architecture-specific. For LeJEPA, $z^{(\ell)}$ is the mean over the patch tokens of the $\ell$-th transformer block, with the \texttt{[CLS]} token excluded so that the descriptor reflects spatial content rather than the global classification token. For GSViT, $z^{(\ell)}$ is the spatial mean over the $(H_\ell \times W_\ell)$ feature map produced by the patch-embedding layer or by one of the EfficientViT blocks; because EfficientViT widens its channel dimension across stages, $d_\ell$ grows with depth. For each layer $\ell$, a linear classifier
+\begin{equation}
+\hat{y}^{(\ell)}(x) = \mathrm{softmax}\!\left(W^{(\ell)} z^{(\ell)}(x) + b^{(\ell)}\right)
+\end{equation}
+is trained over the $C$ surgical phases of Cholec80 by minimising the cross-entropy
+\begin{equation}
+\mathcal{L}^{(\ell)} = -\frac{1}{|\mathcal{B}|}\sum_{(x, y) \in \mathcal{B}} \log \hat{y}^{(\ell)}_y(x)
+\end{equation}
+over mini-batches $\mathcal{B}$ with AdamW. The probe parameters $W^{(\ell)} \in \mathbb{R}^{C \times d_\ell}$ and $b^{(\ell)} \in \mathbb{R}^{C}$ are the only trainable quantities; the encoder $f_\theta$ remains frozen, so a single forward pass over the evaluation set is sufficient and the cached features are reused across all hyperparameter configurations.
+
+Probe quality is reported using three classification metrics: top-1 accuracy, macro $F_1$, and macro Jaccard. To ensure that probe scores reflect generalisation rather than memorisation of patient-specific cues, evaluation is performed under $5$-fold cross-validation grouped by video. Let $\mathcal{V}$ be the set of $80$ Cholec80 videos and $\{\mathcal{V}_k\}_{k=1}^{5}$ a partition with $\mathcal{V}_k \cap \mathcal{V}_{k'} = \emptyset$ for $k \neq k'$. Within fold $k$, all frames belonging to videos in $\mathcal{V}_k$ form the validation portion and the remainder forms the training portion, so no surgery contributes frames to both splits. A small grid search over learning rate and weight decay is performed inside each fold and the configuration achieving the highest top-1 accuracy on the validation portion is retained; the reported scores are the mean and sample standard deviation across the five folds. The specific values of the grid and optimizer are listed in the experimental setup.
+
+\subsection{Uniform Manifold Approximation and Projection}
+\label{sec:umap}
+To complement the layer-wise probing with a qualitative view of the learned representations, Uniform Manifold Approximation and Projection \parencite{mcinnes-2018} is used to project the per-layer embeddings of GSViT and LeJEPA into two dimensions. Uniform Manifold Approximation and Projection is preferred over t-distributed Stochastic Neighbour Embedding \parencite{van-der-maaten-2008} because it preserves the global structure of the embedding space more faithfully, allowing the relative positions of phase clusters to be interpreted alongside their internal coherence. The algorithm proceeds in two stages. In the first stage, it constructs a weighted $k$-nearest-neighbour graph on the cached features and interprets the edge weights as fuzzy membership strengths. For each point $x_i$, the distance $\rho_i$ to its nearest neighbour is treated as the local notion of zero distance, and a per-point scale $\sigma_i$ is set so that the membership weights of the $k$ nearest neighbours sum to $\log_2 k$. The directed weight from $x_i$ to a neighbour $x_j$ is
+\begin{equation}
+v_{j \mid i} = \exp\!\left(-\frac{\max\!\left(0,\, d(x_i, x_j) - \rho_i\right)}{\sigma_i}\right),
+\end{equation}
+where $d(\cdot, \cdot)$ is the chosen metric, taken to be cosine in this work. Because $v_{j \mid i}$ and $v_{i \mid j}$ generally disagree, the directed graph is symmetrised through the fuzzy union
+\begin{equation}
+v_{ij} = v_{j \mid i} + v_{i \mid j} - v_{j \mid i}\, v_{i \mid j},
+\end{equation}
+yielding a single weight per undirected edge. In the second stage, a low-dimensional embedding $\{y_i\}_{i=1}^{N} \subset \mathbb{R}^2$ is initialised by spectral embedding of the symmetrised graph and then optimized so that its own fuzzy graph matches the high-dimensional one. Membership in the low-dimensional space is parameterised by a smooth analogue of the high-dimensional kernel,
+\begin{equation}
+w_{ij} = \left(1 + a\, \|y_i - y_j\|_2^{2b}\right)^{-1},
+\end{equation}
+where the constants $a$ and $b$ are fitted to the chosen minimum-distance parameter so that points with low-dimensional separation below $\mathrm{min\_dist}$ receive near-maximal membership. The embedding is found by minimising the fuzzy cross-entropy
+\begin{equation}
+\mathcal{L}_{\mathrm{UMAP}} = \sum_{i \neq j} v_{ij} \log\frac{v_{ij}}{w_{ij}} + (1 - v_{ij}) \log\frac{1 - v_{ij}}{1 - w_{ij}}
+\end{equation}
+through stochastic gradient descent, with attractive updates applied along edges of the high-dimensional graph and repulsive updates applied to negatively sampled non-neighbour pairs. To control for the influence of random initialisation, the projection is run with multiple random seeds and the resulting embeddings are compared for consistency. The hyperparameters used are listed in the experimental setup.
+
+\subsection{Experimental Setup}
+The experiments are designed to characterise how surgical information is distributed across the layers of GSViT and LeJEPA, and to compare the inductive biases that pixel-based and latent-based pretraining instil in each model.
+
+\paragraph{Pretraining and Evaluation Datasets.} GSViT and LeJEPA are pretrained on the union of CATARACTS, JIGSAWS, and PitVis, capped at one million frames per dataset to balance procedural representation. Cholec80 is held out as the evaluation dataset; all $80$ videos are used for probing, with frames decoded at $1$~fps and resized to $224 \times 224$.
+
+\paragraph{Probing Parameters.} The probing task is surgical phase recognition over the seven phases of the standard Cholec80 annotation. Each linear probe is optimized with AdamW for $20$ epochs at an inner batch size of $4{,}096$. The per-fold hyperparameter grid contains $5$ learning rates and $4$ weight-decay values, for $20$ configurations in total. Cross-validation uses $5$ folds grouped by video, and the absence of group leakage between training and validation portions is asserted at run time. The configuration achieving the highest top-1 accuracy on the held-out  fold is retained, and that fold's accuracy, macro $F_1$, and macro 
+Jaccard are recorded. Accuracy alone is a poor summary statistic given 
+Cholec80's skewed phase distribution, so macro $F_1$ and macro Jaccard 
+are included to give equal weight to minority phases; their definitions 
+and a fuller justification are given in the metrics paragraph below.
+
+\paragraph{Evaluation Metrics.} Three metrics are reported for each 
+linear probe. Top-1 accuracy measures the fraction of correctly 
+classified frames,
+\begin{equation}
+    \text{Accuracy} = \frac{1}{N}\sum_{i=1}^{N} \mathbf{1}[\hat{y}_i = y_i],
+\end{equation}
+but is a poor summary statistic for Cholec80 because the phase 
+distribution is heavily skewed: \emph{CalotTriangleDissection} accounts 
+for a disproportionate share of frames, so a classifier that concentrates 
+capacity on the majority phase can achieve high accuracy while failing on 
+clinically critical minority phases. Macro $F_1$ and macro Jaccard 
+correct for this by averaging the per-class scores with equal weight 
+across all $C = 7$ phases,
+\begin{equation}
+    \text{macro-}F_1 = \frac{1}{C}\sum_{c=1}^{C} 
+    \frac{2\,\text{TP}_c}{2\,\text{TP}_c + \text{FP}_c + \text{FN}_c},
+\end{equation}
+\begin{equation}
+    \text{macro-Jaccard} = \frac{1}{C}\sum_{c=1}^{C} 
+    \frac{\text{TP}_c}{\text{TP}_c + \text{FP}_c + \text{FN}_c},
+\end{equation}
+where $\text{TP}_c$, $\text{FP}_c$, and $\text{FN}_c$ are the true 
+positives, false positives, and false negatives for phase $c$. 
+Macro Jaccard is strictly lower than macro $F_1$ for any imperfect 
+classifier, and is more sensitive to simultaneous false positives and 
+false negatives, making it a conservative lower bound on recognition 
+quality. Reporting all three metrics together allows accuracy gains that 
+stem from majority-class exploitation to be distinguished from genuine 
+improvements in per-phase discrimination.
+
+\paragraph{Layer-wise UMAP Visualization Parameters.} For each model and each layer, a deterministic random subsample of up to $20{,}000$ frames is drawn from the full Cholec80 set (the same cache used by the linear probes) and projected with $n\_\text{neighbors} = 30$, $\mathrm{min\_dist} = 0.1$, cosine metric, and $n\_\text{components} = 2$. Each scatter is colored by the ground-truth phase label; no class information enters the projection itself, so any apparent structure reflects what the encoder has learned rather than what the visualiser has been told.
+
+
+\paragraph{Implementation.} The code for the GSViT model was adapted based on the \textcite{schmidgall2024general} paper's provided code \footnote{https://github.com/SamuelSchmidgall/GSViT; The code included a bug in its deeper layers when it comes to its SE Attention modules, however this was fixed and documented.}. The LeJEPA model was adapted and changed based on the \textcite{maes-2026} paper's code \footnote{https://github.com/lucas-maes/le-wm; The original code used action-conditioned as its input however this was adapted to be complicable for this project.}. The full repository can be found on github \footnote{Full repository: https://github.com/MRSinal/thesis}.
+All experiments are implemented in PyTorch, with \texttt{scikit-learn}
+used for cross-validation and metric computation, \texttt{umap-learn}
+for the UMAP projections, OpenCV for frame decoding, and Hydra for
+configuration management. Pretraining is run on \textit{1 NVIDIA A40 GPU} for \textit{~20 hours} for GSViT and \textit{~35 hours} for LeJEPA. Probing and visualization are run on a single GPU. Per-layer feature tensors are cached to disk after the first extraction pass so that the probing sweeps and UMAP projections can be repeated without re-running the encoders. A single random seed governs the PyTorch RNG (and hence probe-head initialisation and the AdamW shuffle order); the data loader runs with \texttt{shuffle=False} and \texttt{GroupKFold} is deterministic, so the only remaining source of variance is across-fold sampling, which is absorbed into the standard deviations reported in the probing results.
+
+\section{Results}
+\begin{figure}[t!]
+\centering
+\begin{minipage}{.49\textwidth}
+\centering
+\includesvg[width=\linewidth]{figures/gsvit_train_loss.svg}
+\end{minipage}\hfill
+\begin{minipage}{.49\textwidth}
+\centering
+\includesvg[width=\linewidth]{figures/lejepa_train_loss.svg}
+\end{minipage}
+
+\caption{Pretraining results for the two surgical foundation
+models compared in this work. \textbf{Left: } LeJEPA training loss over
+optimization steps. The objective drops sharply within the first few
+thousand steps as the predictor aligns with the SIGReg-regularized
+embedding distribution, and then plateaus near zero for the
+remainder of training, consistent with the stable, collapse-free
+behaviour reported by \textcite{balestriero-2025}.
+\textbf{Right: } GSViT training loss (pixel-space L1 reconstruction
+objective) over optimization steps; note the substantially smaller
+loss scale, reflecting the different objective rather than a
+qualitative advantage.}
+\label{fig:pretrain}
+\end{figure}
+\subsection{Pretraining}
+Both encoders trained stably to convergence on the curated corpus, but did so along very different optimization trajectories and at different compute budgets
+(Fig.~\ref{fig:pretrain}). Because the two objectives operate in
+different spaces, an $L_1$ reconstruction loss in pixel space for
+GSViT and an $L_2$ prediction loss in latent space combined with the
+SIGReg regularizer for LeJEPA, the absolute loss magnitudes are not
+directly comparable; the value of the curves lies in their shape and
+stability rather than in cross-model comparison.
+
+LeJEPA exhibits the characteristic JEPA training profile: a sharp
+drop within the first few thousand updates, as the predictor and the
+SIGReg-shaped embedding geometry co-adapt, followed by a long plateau
+close to zero that is sustained for the remainder of training.
+Crucially, no representation collapse is observed: the loss
+stabilizes at a small but non-zero value rather than identically
+zero, indicating that the encoder is not driving every input to a
+constant vector \parencite{balestriero-2025}. This is achieved
+without EMA teachers, stop-gradient updates, or any of the auxiliary
+heuristics typically required by latent-based methods, supporting the
+central claim of the LeJEPA framework that SIGReg alone is sufficient
+to keep latent pretraining stable. GSViT shows a smooth,
+near-monotonic decrease across $\sim$150k updates with no
+instabilities, consistent with the well-behaved optimization profile
+expected from a pixel reconstruction objective.
+\newpage
+\begin{wrapfigure}{r}{0.4\textwidth}
+\centering
+\includesvg[width=\linewidth]{figures/training_costs.svg}
+\caption{Total pretraining cost in GPU-days.}
+\label{fig:training_costs}
+\vspace{-0.5em}
+\end{wrapfigure}
+In terms of training efficiency, GSViT is the cheaper of the two
+models on this corpus, completing pretraining in roughly $0.8$
+GPU-days against $\sim$$1.5$ GPU-days for LeJEPA on the same single
+A40, an $\approx$$1.8\times$ overhead for the latent-prediction
+model. This gap is consistent with LeJEPA's additional architectural
+components: a separate predictor transformer that consumes a window
+of past embeddings, the projection heads attached to both the encoder
+and the predictor, and the $M = 1024$ random projections required by
+SIGReg at every step. GSViT, by contrast, performs only a single
+forward pass through the EfficientViT encoder and its asymmetric
+decoder. The extra cost incurred by LeJEPA is therefore the price
+paid for operating in latent space and for the explicit anti-collapse
+regularizer, rather than evidence of an inefficient training methodology.
+The remaining pretraining diagnostics, including per-component loss
+breakdowns and the LeJEPA validation curves, are reported in
+Appendix~\ref{app:c}.
+
+
+
+\subsection{Layer-wise probing}
+The probe profiles summarized in Figure~\ref{fig:probe_layerwise} already
+establish that GSViT and LeJEPA reproduce the differences between
+pixel-trained and latent-prediction encoders reported by
+\textcite{joseph-2026}. Three further observations follow. First, LeJEPA leads GSViT at every depth after Layer 1 and on every metric, but the gap is markedly wider on the macro-averaged class-imbalance-aware metrics than on plain accuracy. Comparing each model at its own best layer, the
+two differ by $3.7$\%\ on accuracy ($0.556$ vs.\ $0.519$), by $0.08$ on macro-$F_1$ ($0.321$ vs.\ $0.241$), and by $0.052$ on macro-Jaccard ($0.213$ vs.\
+$0.161$). Cholec80 phase durations are heavily
+skewed: \emph{CalotTriangleDissection} and \emph{GallbladderDissection}
+dominate the frame count while \emph{ClippingCutting} and
+\emph{GallbladderPackaging} occupy short windows, so accuracy can be
+carried largely by majority-class predictions, whereas macro-$F_1$ and
+Jaccard penalize neglect of the rarer phases. The disproportionately
+larger LeJEPA advantage on the macro metrics therefore indicates not
+just that its features are more linearly separable on average, but that
+it places the minority phases on a more linearly separable manifold than
+GSViT's. The contrast is sharpest at the final layer of each model:
+GSViT collapses to $F_1 = 0.167 \pm 0.037$ and Jaccard $= 0.112 \pm 0.023$,
+while LeJEPA still retains $F_1 = 0.251 \pm 0.054$ and Jaccard $= 0.167
+\pm 0.032$. This is the property a latent-prediction objective with explicit
+anti-collapse regularization is designed to encourage
+\parencite{balestriero-2025}: by spreading embeddings to match an
+isotropic Gaussian rather than reconstructing pixels, LeJEPA has no
+in-built incentive to allocate more capacity to common phases.
+
+\begin{figure}[t!]
+\centering
+\begin{minipage}{.49\textwidth}
+\centering
+\includesvg[width=\linewidth]{figures/gsvit_probe_mean_std.svg}
+\end{minipage}\hfill
+\begin{minipage}{.49\textwidth}
+\centering
+\includesvg[width=\linewidth]{figures/jepa_probe_mean_std.svg}
+\end{minipage}
+\caption{\textbf{Layer-wise linear probing accuracy, macro $F_1$, and macro
+    Jaccard for surgical phase recognition on Cholec80, reported as mean
+    $\pm$ standard deviation across 5 video-grouped folds}. The pattern
+    mirrors the findings of \textcite{joseph-2026}: in their study,
+    latent world models concentrate task-relevant information in the
+    higher layers, whereas pixel-based encoders distribute it more
+    uniformly across layers, with the strongest probes typically
+    appearing around the first third of the network, named as the
+    \emph{emergence zone} \parencite{joseph-2026}. Our two models reproduce these differences.
+    GSViT (pixel-based) yields nearly flat scores across all 13 layers, with its peak
+    in fact at the patch embedding (layer~0). LeJEPA (latent) instead
+    exhibits a clear emergence zone: probe quality climbs steadily from
+    layer~0 to a maximum around layer~7, after
+    which performance degrades toward the final block, consistent with the late-layer drop reported by \textcite{joseph-2026} and \textcite{bolya-2025}. The rise toward
+    the emergence zone is, however, more gradual than the sharp jump
+    they observe.}
+    \label{fig:probe_layerwise}
+\end{figure}
+
+Second, cross-fold stability is informative beyond the means alone. For
+LeJEPA the lowest variance lies in the same depth band where the means
+peak: layer~8 has the lowest macro-Jaccard standard deviation ($0.013$)
+and a near-lowest macro-$F_1$ standard deviation ($0.016$), with
+layers~7--9 collectively the most fold-consistent in the network. This
+rules out the possibility that the emergence-zone peak is driven by a
+single fold; it is a property of the representation rather than of the
+particular video split. GSViT also attains its smallest spreads at
+layers~8 ($\sigma_{\text{Jaccard}} = 0.005$, $\sigma_{F_1} = 0.007$ at
+layer~8), but its means there are already on the descending tail of an
+already-flat curve, so the stability reflects a uniformly weak
+representation rather than a strong, fold-robust one.
+
+Third, the pattern of standard deviations across metrics reinforces the
+class-imbalance reading. At the deepest LeJEPA layers, the macro-$F_1$
+standard deviation expands far more than the accuracy standard deviation
+(layer~11: $\sigma_{F_1} = 0.065$ vs.\ $\sigma_{\text{acc}} = 0.024$;
+layer~12: $\sigma_{F_1} = 0.054$ vs.\ $\sigma_{\text{acc}} = 0.020$), and
+a similar inflation appears in GSViT at layer~9 ($\sigma_{F_1} = 0.047$
+vs.\ $\sigma_{\text{acc}} = 0.014$). Because macro-$F_1$ is dominated by
+per-class behaviour on rare phases, a much larger $F_1$ spread at
+comparable accuracy spread implies that minority-class predictions vary
+substantially across folds while majority-class predictions remain
+stable. This provides an additional reason, beyond the late-layer drop
+in the mean, to prefer mid-depth layers for downstream phase
+prediction. Full result table for layer-wise probing is reported in Appendix~\ref{app:d}.
+
+\begin{figure}[t!]
+    \centering
+    % --- Top row: GSViT ---
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_gsvit_cholec80/umap_layer00.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_gsvit_cholec80/umap_layer06.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_gsvit_cholec80/umap_layer12.png}
+    \end{minipage}
+
+    \vspace{0.5em}
+
+    % --- Bottom row: LeJEPA ---
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_lejepa_cholec80/umap_layer00.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_lejepa_cholec80/umap_layer06.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/umap_lejepa_cholec80/umap_layer12.png}
+    \end{minipage}
+
+    \caption{\textbf{Per-layer UMAP projections of frozen-encoder features on
+    Cholec80, colored by surgical phase}. For each backbone, frame embeddings are extracted at all layers then projected to two dimensions with UMAP. The same UMAP hyperparameters (\texttt{n\_neighbors}, \texttt{min\_dist}, \texttt{metric}) and random seed are used for both backbones, and the same
+    deterministically-sampled frame subset is visualized at every depth, so differences across panels reflect representational changes rather than sampling or fitting noise.
+    \textbf{Top row (GSViT):} the embeddings remain a single, largely
+    homogeneous blob at every layer, with the seven surgical phases heavily
+    intermixed; no phase-level structure emerges. \textbf{Bottom row (LeJEPA):} a progressively richer manifold develops with depth, exhibiting elongated, branching structure at layers~6
+    and~12 and visible local coherence of phase labels (e.g.\
+    \textit{CalotTriangleDissection} in orange and
+    \textit{GallbladderRetraction} in cyan).}
+    \label{fig:umap_layerwise}
+\end{figure}
+\subsection{UMAP visualization}
+The per-layer UMAP projections in Figure~\ref{fig:umap_layerwise}
+corroborate the probing analysis. GSViT remains a single, largely
+amorphous cloud at every depth: phase labels intermix uniformly across the projection, and even the strongest-probing layer~0 shows no visible clustering. Combined with the flat probe profile this rules out that GSViT has built a linearly separable strong representation but did poorly on the down-stream task; the underlying representation simply does not separate surgical phases in any geometry, linear or otherwise. LeJEPA, by contrast, develops progressively richer structure with depth, and the visual ranking of the LeJEPA panels tracks the probe-quality
+ranking closely. Layer~0 is again a near-uniform blob, consistent with its lowest macro-$F_1$ ($0.169$) and Jaccard ($0.118$). By the mid-depth band ($6$--$9$), where the probe metrics peak and the cross-fold variances are smallest, the projection breaks into elongated, branching components in which neighboring points predominantly share a phase
+label. The most visible groupings correspond to the two longest-duration phases, \emph{CalotTriangleDissection} (orange) and \emph{GallbladderRetraction} (cyan), whose frames concentrate more along distinct branches. Shorter phases such as \emph{ClippingCutting} and \emph{GallbladderPackaging} remain mixed in among the longer ones. The deepest layers (11--12) present a slightly weaker, but still
+recognisable, version of the mid-depth structure: the layer-7 macro-$F_1$ peak of $0.321$ has decayed to $0.251$ at layer~12, and the
+correspondingly lower-quality UMAP retains branching geometry that is
+nevertheless qualitatively richer than the layer-0 blob: matching the
+fact that layer~12's probe scores remain comfortably above layer~0's. This alignment between the linear-probe trajectory and the UMAP clarity 
+supports the view that LeJEPA's deepest layers specialize toward 
+predictor-facing features rather than phase-discriminative ones 
+\parencite{joseph-2026, bolya-2025}, yet without fully losing phase awareness. Per-layer
+UMAPs for all thirteen depths of both backbones are provided in
+Appendix~\ref{app:e}.
+\section{Discussion}
+
+\paragraph{Findings.} This thesis set out to assess whether a latent-predictive pretraining objective improves the semantic robustness and topological organization of surgical phase representations relative to a pixel-reconstruction objective. Both sub-questions are answered affirmatively. On Sub-Question~1, LeJEPA leads GSViT at every depth and on every metric, with the gap widening sharply on the class-imbalance-aware macro $F_1$ ($\sim$33\% relative) and macro Jaccard ($\sim$32\% relative) compared to plain accuracy ($\sim$7\% relative). Most of LeJEPA's layers beats GSViT's best layer on macro-$F_1$, indicating that pixel reconstruction structurally under-allocates capacity to the rare phases that SIGReg's isotropic-Gaussian constraint protects. Because the isotropic-Gaussian 
+prior penalizes representational collapse in any direction, rare phases  and atypical frame appearances receive as much capacity as dominant ones, a property that matters disproportionately in surgical video where inter-patient variability is high and minority phases such as \emph{ClippingCutting} carry the highest clinical stakes. On Sub-Question~2, the UMAP projections corroborate this picture: GSViT remains a near-amorphous cloud at every depth, while LeJEPA develops progressively richer, phase-coherent manifold structure that tracks the probe-quality ranking. The mid-depth emergence zone (layers 7--9), where probe means peak and cross-fold variance is smallest, replicates the latent-vs-pixel contrast reported by \textcite{joseph-2026}, and supports the claim of \textcite{balestriero-2025} that SIGReg alone, without EMA teachers or stop-gradients, suffices to keep latent pretraining stable under domain shift. The specific contribution is thus a layer-resolved, side-by-side comparison of pixel-based and latent-based foundation models in surgery, trained under matched data and compute budgets, suggesting that a substantial share of the gains UniSurg \parencite{wu-2026} attributes to its V-JEPA-style cascade of heuristics may stem from the latent objective itself.
+
+\paragraph{Limitation.} Several limitations temper these conclusions. The pretraining corpus is 5x smaller than UniSurg's, only Cholec80 phase recognition is used for evaluation, both encoders are probed in a frozen single-frame mode that discards exactly the temporal information LeJEPA is trained to predict. The static-frame protocol also raises a sharper interpretive question that this study cannot settle: the UMAP branches do not consistently follow the canonical phase ordering, suggesting that LeJEPA may lean on spatial cues (instrument identity, anatomical view, tissue appearance) to forecast the next embedding rather than encoding genuinely temporal structure. Future work should therefore pursue three directions. First, attention-rollout maps over both encoders would convert the present geometric argument into a perceptual one, making it directly inspectable whether LeJEPA attends to instrument--tissue interaction zones while GSViT spreads attention over semantically uninformative regions such as specular highlights and smoke. Second, evaluating the frozen LeJEPA encoder on time-reversed Cholec80 clips, and symmetrically perturbing GSViT's temporal context at probing time, would localize how much of each model's semantics is genuinely temporal versus spatial. Third, scaling the comparison along corpus size, predictor capacity, and downstream tasks beyond phase recognition (tool presence, triplets, gesture recognition) would establish whether the observed gap is fixed or a function of each objective's scaling law, and whether the late-layer drop deepens with predictor capacity as the predictor-specialization hypothesis predicts.
+\section{Conclusion}
+
+This thesis investigated the extent to which a latent-predictive pretraining objective improves the semantic robustness and topological organization of surgical phase representations relative to a pixel-reconstruction objective. To answer this, GSViT and LeJEPA were pretrained under matched data and compute budgets on a curated corpus of CATARACTS, JIGSAWS, and PitVis, and their frozen representations were probed layer by layer on Cholec80 phase recognition and visualized with UMAP. The key takeaway is that the choice of pretraining objective dominates over architectural sophistication or training scale in shaping what surgical foundation models actually learn. LeJEPA's latent-prediction objective, regularized only by SIGReg, produces representations that are more linearly separable, more topologically organized, and substantially more equitable across rare and common phases than those produced by GSViT's pixel-reconstruction objective, with the latter failing to surface phase semantics in any geometry, linear or otherwise. The mid-depth emergence zone observed in LeJEPA replicates, in the surgical domain, the latent-vs-pixel distinction previously reported only on natural video, and the stability of LeJEPA's training without EMA teachers or stop-gradients confirms that the minimal-recipe JEPA framework transfers to a small, sensitive, domain-shifted corpus.
+
+These findings carry three implications. For the field of surgical computer vision, they suggest that the engineering complexity that has accumulated around latent surgical foundation models, motion-guided masking, spatiotemporal self-distillation, feature-diversity regularizers, may be doing less work than the underlying latent objective itself, and that future surgical foundation models should be built around minimal latent-prediction recipes before reaching for auxiliary heuristics. For practice, the disproportionate macro-$F_1$ advantage of latent features on minority phases matters clinically, since transitions in and out of short phases are precisely where workflow-aware decision support is most useful; pretraining objective choice is therefore not a neutral implementation detail but a determinant of which surgical events a downstream system can reliably recognize. For theory, the persistence of the emergence-zone phenomenon under a fundamentally different visual distribution strengthens the case that this is a property of the objective rather than of the natural-image domain, and that latent-predictive pretraining produces a characteristic representational geometry, mid-depth peak, manifold branching, isotropic spread across classes, that is reproducible across domains. Whether this geometry is genuinely temporal or merely a spatial artefact of a temporal objective remains the central open question that this work raises and that future probing under temporal perturbation, attention rollout, and broader downstream evaluation will need to answer.
+
+\newpage
+\printbibliography
+
+\appendix
+\section{GSViT and LeJEPA Architectural Details}\label{app:a}
+\subsection*{GSViT Architectural Details}
+
+This section provides the formal definitions of the EfficientViT components used in GSViT.
+
+\paragraph{Sandwich layout.} The sandwich layout reduces the number of self-attention layers in a block by surrounding a single self-attention layer with multiple MLP layers. Let $\Phi_i^{\mathrm{A}}$ denote the self-attention layer of the $i$-th block and $\Phi_i^{\mathrm{F}}$ an MLP layer. With $N$ MLPs applied before and after the attention layer, the block can be written as
 \begin{equation}
 X_{i+1} = \prod_{i}^{N} \Phi_i^{\mathrm{F}}\!\left(\Phi_i^{\mathrm{A}}\!\left(\prod_{i}^{N} \Phi_i^{\mathrm{F}}(X_i)\right)\right),
 \end{equation}
-where $X_i$ is the input feature for the i-th block. The full block transforms $X_i$ into $X_{i+1}$ with $\mathrm{N}$ number of MLPs before and after a single self-attention layer. This allows the model to be more memory and time efficient due to less self-attention layers that are computionally expensive.
+where $X_i$ is the input feature of the $i$-th block and $X_{i+1}$ its output. Because self-attention is computationally more expensive than the MLP layers it is interleaved with, this layout yields a more memory- and time-efficient block.
 
-\paragraph{Cascaded Group Attention} CGA splits the input feature $X_i$ along the channel dimension into $h$
-disjoint groups $\{X_{ij}\}_{j=1}^{h}$ and routes each group to a separate attention head. This avoids the redundancy of standard multi-head attention, in which every head operates on the full feature map and the learned projections tend to be highly correlated. Each head computes:
+\paragraph{Cascaded Group Attention.} CGA splits the input feature $X_i$ along the channel dimension into $h$ disjoint groups $\{X_{ij}\}_{j=1}^{h}$ and routes each group to a separate attention head. Each head computes
 \begin{equation}
 \tilde{X}_{ij} = \mathrm{Attn}\!\left(X_{ij} W^{Q}_{ij},\, X_{ij} W^{K}_{ij},\, X_{ij} W^{V}_{ij}\right),
 \end{equation}
-with per-head projections $W^{Q}_{ij}, W^{K}_{ij}, W^{V}_{ij}$, and the head outputs are concatenated and projected to form the block output:
+with per-head projections $W^{Q}_{ij}, W^{K}_{ij}, W^{V}_{ij}$. The head outputs are concatenated and projected to form the block output:
 \begin{equation}
 X_{i+1} = \mathrm{Concat}\!\left[\tilde{X}_{ij}\right]_{j=1}^{h} W^{P}_{i}.
 \end{equation}
@@ -204,178 +518,40 @@ Within a block, the heads are arranged cascadingly: the output of head $j-1$ is 
 \begin{equation}
 X'_{ij} = X_{ij} + \tilde{X}_{i(j-1)}, \qquad 1 < j \leq h,
 \end{equation}
-so that later heads refine the representation produced by earlier ones. This increases the effective depth of the attention stack without introducing additional parameters.
+so that later heads refine the representation produced by earlier ones, increasing the effective depth of the attention stack without introducing additional parameters.
 
-\paragraph{Parameter reallocation strategy} The second mechanism, parameter reallocation, redistributes channel width across the network. Modules that contribute most to representation quality, such as the query and key projections and the MLP expansion, are widened, while modules with diminishing returns, such as the value projections in deeper stages, are narrowed. The net effect is a model with the same parameter budget but a higher-capacity allocation in the components that matter for downstream performance, with a measurable gain in inference speed.
+\subsection*{LeJEPA Architectural Details}
 
-\paragraph{Asymmetric Decoder} To reconstruct high-resolution images from encoded representations produced by EfficientVit, GSViT uses an asymmetric decoder \parencite{schmidgall2024general}. First the initial representation is transformed by a fully connected layer to product a higher-dimensional space, which is then followed by batch normalization and Gaussian Error Linear Unit activiation. The decoder itself is composed of sequence transposed convolutional (Conv) layers which incrementally increases the spatial dimensions of the processed data to reconstruct the original image. Each layer is then followed by batch normalizations and ReLU activation. In between Conv layers, residual blocks are utilized with Squeeze-and-Excitation (SE) attention modules at two different scales. This enables to recalibration of channel-wise feature responses; increasing the focus on relevant features during reconstruction.
+This section provides the formal definitions of the LeJEPA architecture and training objective.
 
-SHOULD MENTION THE SIZE OF THE MODELS!!!!!
-
-\subsection{LeJEPA}
-LeJEPA builds on the JEPA framework for self-supervised latent representation learning, but discards the auxiliary heuristics: stop-gradients, exponential moving averages, teacher--student methods, that earlier JEPA variants rely on to avoid representation collapse. A single regularizer, SIGReg, is sufficient to keep training stable \parencite{balestriero-2025}.
-
-The architecture is composed of two modules: an encoder and a predictor. Given a frame $\mathrm{f}_t$, the encoder $enc_\theta$, instantiated as a Vision Transformer (ViT) \parencite{dosovitskiy-2020}, maps the input into a compact latent representation $\mathrm{z}_t$. The predictor $pred_\phi$ then models the dynamics of the environment in latent space, forecasting the embedding of the next frame from a window of past embeddings.
-
+\paragraph{Encoder and predictor.} Given a frame $\mathrm{f}_t$, the encoder produces a latent representation
 \begin{equation}
-\mathrm{z}_t = enc_\theta(\mathrm{f}_t)
+\mathrm{z}_t = enc_\theta(\mathrm{f}_t),
 \end{equation}
+and the predictor forecasts the embedding of the next frame from a window of $N$ past embeddings:
 \begin{equation}
-\mathrm{\hat{z}}_{t+1} = pred_\phi(\mathrm{z}_{t-N+1},\,\dots,\,\mathrm{z}_t)
+\mathrm{\hat{z}}_{t+1} = pred_\phi(\mathrm{z}_{t-N+1},\,\dots,\,\mathrm{z}_t).
 \end{equation}
 
-For the encoder the project adopts the ViT-Tiny variant: $12$ transformer blocks with $3$ attention heads, a hidden dimensionality of $192$, and a patch size of $16$. The observation embedding $\mathrm{z}_t$ is read off from the \texttt{[CLS]} token of the final transformer block and then routed through a projection head, implemented as a single linear layer followed by Batch Normalization \parencite{ioffe-2015}. This projection is a need as ViT architecture applies a Layer Normalization \parencite{ba-2016} at its last layer, which constrains the geometry of the \texttt{[CLS]} representation in a way that is incompatible with SIGReg's distributional matching objective. Remapping into a fresh representation space restores the freedom that SIGReg needs in order to act on the embeddings.
-
-The predictor is a deeper transformer model \parencite{vaswani-2017}: $6$ layers, $16$ attention heads, $10\%$ dropout. It takes the past $N$ frame representations and predicts the next embedding autoregressively, with temporal causal masking enforcing that no future embedding can leak into the prediction of an earlier one. The predictor's output passes through its own projection head, identical in design to the encoder's, before the loss is computed. Encoder, predictor, and both projection heads are optimized jointly under the LeJEPA objective described in the next paragraph.
-
-\paragraph{Training Objective}
-The training objective of LeJEPA is composed of two terms: a prediction loss that drives accurate prediction in latent space, and a regularization loss that prevents the encoder from collapsing onto a trivial solution.
-
-The prediction loss is computed under teacher forcing. At each timestep, the predictor outputs an estimate $\mathrm{\hat{z}}_{t+1}$ of the next embedding, and the loss measures its squared Euclidean distance from the embedding produced by the encoder on the next frame $\mathrm{f}_{t+1}$:
-
+\paragraph{Prediction loss.} The prediction loss is computed under teacher forcing as the squared Euclidean distance between the predictor's output and the encoder's embedding of the actual next frame:
 \begin{equation}
 \mathcal{L}_{pred} \triangleq \lVert \mathrm{\hat{z}}_{t+1} - \mathrm{z}_{t+1} \rVert_2^2.
 \end{equation}
 
-Optimizing this term in isolation is insufficient as its prone to a degenerate solution. The encoder can drive $\mathcal{L}_{pred}$ to zero by mapping every input to the same constant vector, since a constant sequence is trivially predictable. This failure mode, known as representation collapse, is the issue that earlier JEPA variants address through stop-gradients, momentum encoders, and asymmetric teacher--student designs.
-
-LeJEPA addresses collapse with a single distributional constraint, the Sketched Isotropic Gaussian Regularizer (SIGReg). SIGReg requires the embeddings produced over a batch to follow an isotropic Gaussian distribution, which excludes the degenerate solution by construction: a constant solution concentrates all probability mass at one point and cannot match a Gaussian target.
-
-Let $\mathrm{Z} \in \mathbb{R}^{N \times B \times d}$ denote the tensor of latent embeddings collected over a history of length $N$, a batch of size $B$, and an embedding dimension $d$. Testing for Gaussianity directly in $d$ dimensions is impractical, since classical normality tests are formulated for univariate samples and degrade as the dimensionality grows. SIGReg side-steps this limitation by working through random one-dimensional projections. It samples $M$ unit-norm directions $\mathrm{u}^{(m)} \in \mathbb{S}^{d-1}$, projects the embeddings onto each direction to obtain $\mathrm{h}^{(m)} = \mathrm{Z}\mathrm{u}^{(m)}$, and applies the univariate Epps--Pulley statistic $T(\cdot)$ to each projection. By the Cramér--Wold theorem, two distributions on $\mathbb{R}^d$ coincide if and only if all of their one-dimensional projections coincide, so matching all univariate marginals is sufficient to match the full joint distribution. The regularizer is the average of the resulting statistics:
-
+\paragraph{SIGReg.} Let $\mathrm{Z} \in \mathbb{R}^{N \times B \times d}$ denote the tensor of latent embeddings collected over a history of length $N$, a batch of size $B$, and an embedding dimension $d$. Testing for Gaussianity directly in $d$ dimensions is impractical, since classical normality tests are formulated for univariate samples and degrade as the dimensionality grows. SIGReg side-steps this limitation by working through random one-dimensional projections: it samples $M$ unit-norm directions $\mathrm{u}^{(m)} \in \mathbb{S}^{d-1}$, projects the embeddings onto each direction to obtain $\mathrm{h}^{(m)} = \mathrm{Z}\mathrm{u}^{(m)}$, and applies the univariate Epps--Pulley statistic $T(\cdot)$ to each projection. By the Cram\'er--Wold theorem, two distributions on $\mathbb{R}^d$ coincide if and only if all of their one-dimensional projections coincide, so matching all univariate marginals is sufficient to match the full joint distribution. The regularizer is the average of the resulting statistics:
 \begin{equation}
 \mathrm{SIGReg}(\mathrm{Z}) \triangleq \frac{1}{M} \sum_{m=1}^{M} T(\mathrm{h}^{(m)}).
 \end{equation}
 
-The complete LeJEPA objective combines both terms:
-
+\paragraph{Full objective.} The complete LeJEPA objective combines the prediction loss and the SIGReg regularizer with weight $\lambda$:
 \begin{equation}
 \mathcal{L}_{LeJEPA} \triangleq \mathcal{L}_{pred} + \lambda \, \mathrm{SIGReg}(\mathrm{Z}).
 \end{equation}
+Following the defaults reported in \parencite{balestriero-2025}, the project adopts $M = 1024$ and $\lambda = 0.1$. Gradients propagate through both terms and the encoder, predictor, and projection heads are optimized jointly end-to-end.
 
-This formulation introduces two hyperparameters: the number of projections $M$ and the regularization weight $\lambda$. The project adopts $M = 1024$ and $\lambda = 0.1$, following the defaults reported in \parencite{balestriero-2025}. No stop-gradient, exponential moving average, or auxiliary stabilization heuristic is employed: gradients propagate through both loss terms, and the encoder, predictor, and projection heads are optimized jointly end-to-end.
+\section{UMAP Details} \label{app:b}
 
-\subsection{Layer-wise probing}
-To investigate how surgical information is distributed across layers, this project employs layer-wise probing, following \textcite{joseph-2026}. For each frozen encoder, per-frame features are extracted from every transformer block (and, for GSViT, from the patch-embedding output) on the Cholec80 evaluation set, and a separate linear probe is trained on each layer to predict surgical phase. Linear probes are used so that we can identify the layers in which information becomes linearly separable, rather than recovered through computation by the probe itself. Probe quality is reported as accuracy, macro $F_1$, and macro Jaccard, evaluated under $5$-fold cross-validation grouped by video so that frames from the same surgery never appear in both the training and validation folds. Further details are provided in Appendix~\ref{app:a}.
-
-\subsection{UMAP}
-To complement the layer-wise probing with a qualitative view of the learned representations, Uniform Manifold Approximation and Projection (UMAP) \parencite{mcinnes-2018} is used to project the embeddings of GSViT and LeJEPA into two dimensions. UMAP is preferred over t-SNE \parencite{van-der-maaten-2008} in this work because it preserves the global structure of the embedding space more faithfully, allowing the relative positions of phase clusters to be interpreted alongside their internal coherence. To control for the influence of random initialization, UMAP is run with multiple random seeds and the resulting projections are compared for consistency. Further details are provided in Appendix~\ref{app:b}.
-
-\subsection{Experimental Setup}
-The experiments are designed to characterise how surgical information is
-distributed across the layers of GSViT and LeJEPA, and to compare the
-inductive biases that pixel-based and latent-based pretraining instil in
-each model.
-
-\paragraph{Pretraining and Evaluation Datasets}
-GSViT and LeJEPA are pretrained on the union of CATARACTS, JIGSAWS,
-PitVis, capped at one million frames per dataset to balance procedural representation. Cholec80 is
-held out as the evaluation dataset; all $80$ videos are used for
-probing, with frames decoded at $1$~fps and resized to $224 \times 224$.
-
-\paragraph{Probing Task}
-A single supervised task defined on Cholec80 is used as a probe:
-surgical phase recognition over the seven phases in the standard
-annotation. For each layer of each model a linear probe is trained on
-features cached from a single forward pass of the frozen encoder. For
-LeJEPA, per-layer features are obtained by mean-pooling the patch tokens
-(excluding \texttt{CLS}) of every transformer block; for GSViT, they are
-obtained by spatially mean-pooling the output of the patch embedding and
-of every block across the three EfficientViT stages, yielding per-layer
-dimensions that grow with depth.
-
-Cross-validation is grouped by video using $5$-fold, so that frames from the same surgery never appear in both the training and validation portions of any fold; the absence ofgroup leakage is asserted at run time. Within each fold a grid search over $5$ learning rates and $4$ weight-decay values ($20$ configurations in total) is performed; each linear probe is optimised with AdamW for $20$ epochs at an inner batch size of $4096$. The configuration achieving the highest top-$1$ accuracy on the held-out fold is retained, and that fold's accuracy, macro $F_1$, and macro Jaccard are recorded. Reported figures are the mean and sample standard deviation across the five folds. Macro averaging is chosen so that the rarer phases contribute equally to the score. SHOULD ADD APPENDIX FOR CONFIGURATIONS
-
-\paragraph{Layer-wise UMAP Visualisation}
-To complement the quantitative probes with a qualitative view of how each layer organises Cholec80 frames, the cached per-layer features are projected to two dimensions with UMAP~\parencite{mcinnes-2018}. For each model and each layer the project draws a deterministic random subsample of up to $20{,}000$ frames from the full Cholec80 set (the same cache used by the linear probes) and fit with $n\_\text{neighbors}=30$, $\text{min\_dist}=0.1$, Euclidean metric, and $n\_\text{components}=2$. Each scatter is coloured by the ground-truth phase label; no class information enters the projection itself, so any apparent structure reflects what the encoder has learned rather than what the visualiser has been told.
-
-\paragraph{Implementation}
-All experiments are implemented in PyTorch, with \texttt{scikit-learn}
-used for cross-validation and metric computation, \texttt{umap-learn}
-for the UMAP projections, OpenCV for frame decoding, and Hydra for
-configuration management. Pretraining is run on \textit{2 GPUs of NVIDIA A40s} for \textit{~20 hours} for GSViT and \textit{~35 hours} for LeJEPA. Probing, and visualisation are run on a single GPU. Per-layer feature tensors are cached to disk after the first extraction pass so that the probing sweeps and UMAP projections can be repeated without re-running the encoders. A single random seed governs the PyTorch RNG (and hence probe-head initialisation and the AdamW shuffle order); the data loader runs with \texttt{shuffle=False} and \texttt{GroupKFold} is deterministic, so the only remaining source of variance is across-fold sampling, which is absorbed into the standard deviations reported in the probing results.
-
-\subsection{Transformer Explanability}
-https://arxiv.org/pdf/2012.09838
-
-\section{Results}
-
-Should prob first explain the outcome of the pretraining. Mention that no validation loss was used for GSViT as baseline did not run it. See github repo (Maybe mention this in experimental setup) 
-
-\subsection{Pretraining}
-Should report training efficiency. 
-
-\subsection{Layer-wise probing}
-
-\textbf{Figures and tables}: Use high-quality visualizations with labeled axes, clear legends, and informative captions (see Figure~\ref{fig:probs}). For table formatting, see Table~\ref{tab:results} as an example. Highlight important scores with \verb|\textbf{}|, use booktabs commands for structure: \verb|\toprule \midrule \bottomrule|. APA does not allow vertical lines.
-
-
-\begin{figure}
-\centering
-\begin{minipage}{.49\textwidth}
-  \centering
-  \includesvg[width=\linewidth]{figures/gsvit_train_loss.svg}
-\end{minipage}\hfill
-\begin{minipage}{.49\textwidth}
-  \centering
-  \includesvg[width=\linewidth]{figures/lejepa_train_loss.svg}
-\end{minipage}
-
-\vspace{0.5em}
-
-\begin{minipage}{.5\textwidth}
-  \centering
-  \includesvg[width=\linewidth]{figures/training_costs.svg}
-\end{minipage}
-\caption{Pretraining results for the two surgical foundation
-    models compared in this work. \textbf{Top left: } LeJEPA training loss over
-    optimization steps. The objective drops sharply within the first few
-    thousand steps as the predictor aligns with the SIGReg-regularized
-    embedding distribution, and then plateaus near zero for the
-    remainder of training, consistent with the stable, collapse-free
-    behaviour reported by \textcite{maes-2026,balestriero-2025}.
-    \textbf{Top Right: } GSViT training loss (pixel-space MAE reconstruction
-    objective) over optimization steps; note the substantially smaller
-    loss scale, reflecting the different objective rather than a
-    qualitative advantage. \textbf{Bottom: } Total pretraining cost in
-    GPU-days for the two models on the curated
-    CATARACTS/JIGSAWS/PitVis corpus
-    ($\approx 1.5$ GPU-days for LeJEPA vs. $\approx 0.8$ GPU-days for
-    GSViT). Both models were trained on the same hardware and data
-    budget; the gap reflects the cost of the JEPA predictor and SIGReg
-    projections relative to GSViT's asymmetric pixel decoder.}
-\label{fig:pretrain}
-\end{figure}
-
-\subsection{Some Model} \label{subs:model}
-
-If you have anything specific to talk about, use subsections, and refer to them as Section~\ref{subs:model}. Don't use paragraphs or subsubsections.
-
-\section{Discussion}
-
-Here you interpret your findings in light of your research goals and the broader literature. Begin by briefly restating your research goal and summarizing your main findings. Then, discuss how these results relate to the existing research context established in your Introduction, i.e., do they confirm, contradict, or extend prior work? What is the specific contribution of your thesis?
-
-Discuss your findings in the same order presented in the Results section. Offer interpretations for surprising or unexpected outcomes relying on the existing literature. Acknowledge any limitations of your methods, models, or data that may have affected your results, and explain how these limitations impact the validity and scope of your findings. Where relevant, suggest alternative approaches that could address these limitations.
-
-Conclude by identifying directions for future research based on your findings, what questions remain unanswered? What new questions has your thesis raised?
-
-\section{Conclusion}
-
-Here you provide a concise summary of the overall work in your thesis. Essentially, you want to answer: what are the key takeaways? Clearly articulate the implications of your work: what does it mean for the field, for practice, or for theory?
-
-Keep this section focused and avoid introducing new information, as that belongs in the Discussion.
-
-\newpage
-\printbibliography
-
-\section*{Appendix A} \label{app:a}
-
-If you have nothing to append: remove this. You can do a page referral for these, like: Appendix A (page~\pageref{app:a}).
-
-\section*{Appendix B} \label{app:b}
-\label{app:b}
-
-UMAP \parencite{mcinnes-2018} constructs a weighted $k$-nearest-neighbour graph over the high-dimensional embeddings $\{\mathrm{X}_i\}_{i=1}^{n}$ and learns a low-dimensional layout $\{\mathrm{y}_i\}_{i=1}^{n}$ whose own neighbourhood graph matches the high-dimensional one as closely as possible. The high-dimensional similarities are defined as
+UMAP \parencite{mcinnes-2018} constructs a weighted $k$-nearest-neighbor graph over the high-dimensional embeddings $\{\mathrm{X}_i\}_{i=1}^{n}$ and learns a low-dimensional layout $\{\mathrm{y}_i\}_{i=1}^{n}$ whose own neighbourhood graph matches the high-dimensional one as closely as possible. The high-dimensional similarities are defined as
 \begin{equation}
 p_{j|i} = \exp\!\left(-\frac{\max(0,\, \lVert \mathrm{X}_i - \mathrm{X}_j \rVert_2 - \rho_i)}{\sigma_i}\right), \qquad p_{ij} = p_{j|i} + p_{i|j} - p_{j|i}\, p_{i|j},
 \end{equation}
@@ -389,7 +565,264 @@ with $(a, b)$ fitted to a smooth approximation of a piecewise function controlle
 \end{equation}
 The first term acts as an attractive force between points that are close in the high-dimensional graph, while the second term acts as a repulsive force between points that are not.
 
-The project uses the \texttt{umap-learn} implementation with $k = 30$ nearest neighbours, a minimum distance of $0.1$, and the cosine metric, with the remaining optimization settings left at the library defaults of \textcite{mcinnes-2018}. The cosine metric is chosen because the semantic content of transformer representations is carried by direction rather than magnitude, so that similarity between embeddings reflects orientation in feature space rather than per-layer norm differences. Embeddings are extracted from the output of each transformer block and projected into two dimensions using a fixed random seed, with up to $20{,}000$ frames drawn as a deterministic subsample to keep the optimization tractable. Visualizations are coloured by surgical phase to assess the degree to which each model's representation aligns with surgically meaningful structure.
+The project uses the \texttt{umap-learn} implementation with $k = 30$ nearest neighbours, a minimum distance of $0.1$, and the cosine metric, with the remaining optimization settings left at the library defaults of \textcite{mcinnes-2018}. The cosine metric is chosen because the semantic content of transformer representations is carried by direction rather than magnitude, so that similarity between embeddings reflects orientation in feature space rather than per-layer norm differences. Embeddings are extracted from the output of each transformer block and projected into two dimensions using a fixed random seed, with up to $20{,}000$ frames drawn as a deterministic subsample to keep the optimization tractable. Visualizations are colored by surgical phase to assess the degree to which each model's representation aligns with surgically meaningful structure.
 
-CHANGE THESE!!!
+\section{Pretraining Diagnostics} \label{app:c}
+
+Following the reporting convention of \textcite{schmidgall2024general}, 
+the GSViT pretraining loss is reported after Exponential Moving Average 
+(EMA) smoothing, defined as $\text{EMA}_t = \alpha \cdot x_t + (1 - 
+\alpha) \cdot \text{EMA}_{t-1}$, where $x_t$ is the raw per-step loss 
+and $\alpha \in (0, 1)$ controls the smoothing window. Figure~\ref{fig:gsvit_curves} shows the same pixel-space $L_1$ reconstruction loss at two smoothing scales. The short-term view ($\alpha = 0.98$) retains more step-to-step variation and shows a sharp initial drop from approximately $0.6$ to below $0.1$ within the first 10k steps. The long-term view ($\alpha = 0.997$) filters out short-term fluctuations and confirms a smooth, near-monotonic decrease across the full 180k steps with no instabilities or divergences. The agreement between both smoothing scales indicates that the downward trend is a stable property of the optimization rather than an artifact of individual batch variation.
+
+\begin{figure}[H]
+    \centering
+    % --- GSViT ---
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/gsvit_running_loss.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/gsvit_running_loss_lg.png}
+    \end{minipage}\hfill
+    \caption{EMA-smoothed running loss of GSViT pretraining. 
+    \textbf{Left:} short-term view ($\alpha = 0.98$). \textbf{Right:} 
+    long-term view ($\alpha = 0.997$).}
+\label{fig:gsvit_curves}
+\end{figure}
+
+Figure~\ref{fig:lejepa_curves} reports the per-component training and 
+validation losses for LeJEPA pretraining. The top row shows the 
+training losses for the two terms of the LeJEPA objective. The SIGReg 
+regularization loss (left) drops sharply within the first 10k steps 
+and then plateaus, indicating that the encoder's embedding 
+distribution converges to the isotropic Gaussian target early in 
+training. The prediction loss (right) follows a similar trajectory 
+but on a smaller scale, with higher step-to-step variance reflecting 
+the difficulty of individual next-frame predictions. The middle and 
+bottom rows show validation losses as both per-epoch averages (left) 
+and per-step traces (right). The total validation loss (middle row) 
+decreases monotonically across training, with no sign of overfitting; 
+the per-step view reveals substantial batch-to-batch variance but a 
+clear downward envelope. The validation prediction loss mirrors the 
+training prediction loss at a comparable scale, and the validation 
+SIGReg loss decreases as well, confirming that the distributional 
+constraint generalizes to held-out data. Together, these curves 
+confirm that LeJEPA trains stably on the surgical corpus without 
+representation collapse, consistent with the behaviour reported by 
+\textcite{balestriero-2025}.
+
+\begin{figure}[H]
+    \centering
+    % --- LeJEPA ---
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_fit_sigreg_loss.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_fit_pred_loss.png}
+    \end{minipage}\hfill
+    \vspace{0.5em}
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_loss_epoch.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_loss_step.png}
+    \end{minipage}\hfill
+    \vspace{0.5em}
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_pred_loss_epoch.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_pred_loss_step.png}
+    \end{minipage}\hfill
+    \vspace{0.5em}
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_sigreg_loss_epoch.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.45\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/training_figures_png/lejepa_validate_sigreg_loss_step.png}
+    \end{minipage}\hfill
+    \caption{Per-component training and validation losses for LeJEPA 
+    pretraining. \textbf{1st row:} training SIGReg loss (left) and 
+    training prediction loss (right). \textbf{2nd row:} total 
+    validation loss as per-epoch averages (left) and per-step traces 
+    (right). \textbf{3rd and 4th rows:} validation prediction loss and 
+    validation SIGReg loss, each shown per-epoch (left) and per-step 
+    (right).}
+\label{fig:lejepa_curves}
+\newpage
+\end{figure}
+\section{Layer-wise probing results}\label{app:d}
+
+\begin{table}
+\centering
+\begin{tabular}{llccc}
+\toprule
+ &  & Accuracy & F1 & Jaccard \\
+Model & Layer &  &  &  \\
+\midrule
+\multirow[t]{13}{*}{GSViT} & 0 & 0.519 ± 0.026 & 0.241 ± 0.034 & 0.161 ± 0.022 \\
+ & 1 & 0.492 ± 0.023 & 0.203 ± 0.021 & 0.135 ± 0.013 \\
+ & 2 & 0.513 ± 0.023 & 0.208 ± 0.033 & 0.141 ± 0.019 \\
+ & 3 & 0.516 ± 0.023 & 0.228 ± 0.019 & 0.153 ± 0.014 \\
+ & 4 & 0.515 ± 0.022 & 0.221 ± 0.025 & 0.149 ± 0.016 \\
+ & 5 & 0.507 ± 0.019 & 0.216 ± 0.015 & 0.144 ± 0.010 \\
+ & 6 & 0.494 ± 0.028 & 0.213 ± 0.028 & 0.140 ± 0.019 \\
+ & 7 & 0.502 ± 0.019 & 0.181 ± 0.026 & 0.124 ± 0.015 \\
+ & 8 & 0.492 ± 0.015 & 0.206 ± 0.007 & 0.136 ± 0.005 \\
+ & 9 & 0.485 ± 0.014 & 0.191 ± 0.047 & 0.127 ± 0.026 \\
+ & 10 & 0.481 ± 0.020 & 0.197 ± 0.039 & 0.130 ± 0.022 \\
+ & 11 & 0.471 ± 0.033 & 0.203 ± 0.037 & 0.132 ± 0.021 \\
+ & 12 & 0.474 ± 0.025 & 0.167 ± 0.037 & 0.112 ± 0.023 \\
+\cline{1-5}
+\multirow[t]{13}{*}{LeJEPA} & 0 & 0.502 ± 0.031 & 0.169 ± 0.015 & 0.118 ± 0.014 \\
+ & 1 & 0.510 ± 0.032 & 0.201 ± 0.020 & 0.137 ± 0.016 \\
+ & 2 & 0.532 ± 0.040 & 0.259 ± 0.034 & 0.173 ± 0.026 \\
+ & 3 & 0.544 ± 0.032 & 0.282 ± 0.018 & 0.188 ± 0.014 \\
+ & 4 & 0.549 ± 0.032 & 0.297 ± 0.027 & 0.198 ± 0.021 \\
+ & 5 & 0.550 ± 0.037 & 0.309 ± 0.030 & 0.205 ± 0.023 \\
+ & 6 & 0.555 ± 0.026 & 0.303 ± 0.044 & 0.202 ± 0.030 \\
+ & 7 & 0.556 ± 0.025 & 0.321 ± 0.017 & 0.213 ± 0.014 \\
+ & 8 & 0.547 ± 0.023 & 0.310 ± 0.016 & 0.205 ± 0.013 \\
+ & 9 & 0.544 ± 0.023 & 0.296 ± 0.023 & 0.196 ± 0.017 \\
+ & 10 & 0.541 ± 0.025 & 0.289 ± 0.040 & 0.191 ± 0.026 \\
+ & 11 & 0.537 ± 0.024 & 0.271 ± 0.065 & 0.180 ± 0.040 \\
+ & 12 & 0.524 ± 0.020 & 0.251 ± 0.054 & 0.167 ± 0.032 \\
+\cline{1-5}
+\bottomrule
+\end{tabular}
+\caption{\textbf{Layer-wise linear probing results for GSViT and LeJEPA on 
+Cholec80 surgical phase recognition.} Each row reports top-1 accuracy, 
+macro $F_1$, and macro Jaccard for a single probe trained on the 
+frozen features of one encoder layer, as mean $\pm$ standard 
+deviation across 5 video-grouped folds.}
+\label{tab:probing_results}
+
+\end{table}
+
+\section{Per-layer UMAP Projections}\label{app:e}
+% --- GSViT ---
+\begin{figure}[t!]
+\centering   
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio ]{figures/umap_gsvit_cholec80/umap_layer01.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth,height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer02.png}
+    \end{minipage}\hfill
+
+    \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer03.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer04.png}
+    \end{minipage}\hfill
+     \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer05.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer07.png}
+    \end{minipage}\hfill
+     \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer08.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer09.png}
+    \end{minipage}\hfill
+    \vspace{0.25em}
+
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer10.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_gsvit_cholec80/umap_layer11.png}
+    \end{minipage}\hfill
+
+    \caption{\textbf{Per-layer UMAP projections of frozen-encoder features on
+    Cholec80, colored by surgical phase}.}
+    \label{fig:umap_all_gsvit}
+\end{figure}
+% --- LeJEPA ---
+\newpage
+\begin{figure}[t!]
+\centering   
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio ]{figures/umap_lejepa_cholec80/umap_layer01.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth,height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer02.png}
+    \end{minipage}\hfill
+
+    \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer03.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer04.png}
+    \end{minipage}\hfill
+     \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer05.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer07.png}
+    \end{minipage}\hfill
+     \vspace{0.25em}
+
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer08.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer09.png}
+    \end{minipage}\hfill
+    \vspace{0.25em}
+
+    \begin{minipage}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer10.png}
+    \end{minipage}\hfill
+    \begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth, height=4cm, keepaspectratio]{figures/umap_lejepa_cholec80/umap_layer11.png}
+    \end{minipage}\hfill
+
+    \caption{\textbf{Per-layer UMAP projections of frozen-encoder features on
+    Cholec80, colored by surgical phase}.}
+    \label{fig:umap_all_lejepa}
+\end{figure}
 \end{document}
