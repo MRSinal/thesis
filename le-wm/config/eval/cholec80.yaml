@@ -50,4 +50,4 @@ wandb:
   config:
     entity: mrsinal-tilburg-university
     project: jepa
-    name: probe_cholec80
+    name: probe_cholec80_temporal

@@ -218,12 +218,20 @@ le-wm/requirements_frozen*
 
 slurm.*
 
+*.csv
+
 le-wm/outputs/*
 le-wm/jepa/*
+le-wm/figures/*
 le-wm/checkpoints/*
 le-wm/wandb/*
+le-wm/cache/*
 
 GSViT/evit_train2/*
 GSViT/wandb/*
 GSViT/profiler_logs/*
+GSViT/outputs/*
+GSViT/cache/*
+GSViT/figures/*
+
 
